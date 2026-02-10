@@ -1,0 +1,78 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Next.js App",
+			"type": "shell",
+			"command": "npx next dev",
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Start Next.js Dev Server",
+			"type": "shell",
+			"command": "TURBOPACK=0 npm run dev"
+		},
+		{
+			"label": "Start Next.js Dev Server",
+			"type": "shell",
+			"command": "TURBOPACK=0 npm run dev"
+		},
+		{
+			"label": "Start Next.js Dev Server on Port 3001",
+			"type": "shell",
+			"command": "TURBOPACK=0 npm run dev -- -p 3001"
+		},
+		{
+			"label": "Start Next.js Dev Server on Port 3003",
+			"type": "shell",
+			"command": "TURBOPACK=0 npm run dev -- -p 3003"
+		},
+		{
+			"label": "Start Next.js Dev Server on Port 3003",
+			"type": "shell",
+			"command": "TURBOPACK=0 npm run dev -- -p 3003"
+		},
+		{
+			"label": "Start Next.js Dev Server on Port 3003 without Turbopack",
+			"type": "shell",
+			"command": "npm run dev -- -p 3003"
+		},
+		{
+			"label": "Start Next.js Development Server",
+			"type": "shell",
+			"command": "npm run dev"
+		},
+		{
+			"label": "Start Next.js Development Server on Port 3004",
+			"type": "shell",
+			"command": "npm run dev -- -p 3004"
+		},
+		{
+			"label": "Start Next.js Dev Server on Port 3005",
+			"type": "shell",
+			"command": "npm run dev -- --port 3005"
+		},
+		{
+			"label": "Start Next.js Dev Server on Port 3006",
+			"type": "shell",
+			"command": "npm run dev -- -p 3006"
+		},
+		{
+			"label": "Start Next.js Dev Server",
+			"type": "shell",
+			"command": "npm run dev"
+		},
+		{
+			"label": "Start Next.js Dev Server",
+			"type": "shell",
+			"command": "npm run dev"
+		},
+		{
+			"label": "Start Next.js Dev Server without Turbopack",
+			"type": "shell",
+			"command": "TURBOPACK=0 npm run dev"
+		}
+	]
+}
