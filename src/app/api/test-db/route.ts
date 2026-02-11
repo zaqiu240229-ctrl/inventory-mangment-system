@@ -1,73 +1,85 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, initializeDatabase } from "@/lib/neon";
+import { isDemoMode } from "@/lib/demo-data";
+
+interface TableRow {
+  table_name: string;
+}
 
 // Database connection test endpoint
 export async function GET() {
   try {
-    const supabase = await createClient();
-    
-    // Test database connection by counting categories
-    const { data: categories, error: categoriesError } = await supabase
-      .from("categories")
-      .select("id, name")
-      .limit(5);
-
-    if (categoriesError) {
-      return NextResponse.json({
-        success: false,
-        message: "Database connection failed",
-        error: categoriesError.message,
-        mode: "database"
-      }, { status: 500 });
-    }
-
-    // Test all table existence
-    const tables = ["categories", "products", "stocks", "transactions", "activity_logs"];
-    const tableTests = [];
-
-    for (const table of tables) {
-      const { data, error } = await supabase
-        .from(table)
-        .select("id")
-        .limit(1);
-      
-      tableTests.push({
-        table,
-        exists: !error,
-        error: error?.message || null
-      });
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: "Database connection successful!",
-      mode: "database",
-      data: {
-        categoriesCount: categories?.length || 0,
-        categories: categories || [],
-        tableTests
-      }
-    }, { status: 200 });
-
-  } catch (error: any) {
-    // Check if we're in demo mode (no valid Supabase config)
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const isDemoMode = !url || url === "your_supabase_project_url";
-
     if (isDemoMode) {
       return NextResponse.json({
         success: true,
-        message: "Running in demo mode - database not configured",
         mode: "demo",
-        instruction: "Set up your Supabase project and update .env.local to enable database mode"
-      }, { status: 200 });
+        message: "Demo mode active - No database connection required",
+        instruction: "Set NEON_DATABASE_URL in .env.local to enable database mode",
+      });
     }
 
-    return NextResponse.json({
-      success: false,
-      message: "Database connection error",
-      error: error.message,
-      mode: "error"
-    }, { status: 500 });
+    // Test Neon connection
+    const sql = createClient();
+
+    // Simple query to test connection
+    const result = await sql`SELECT NOW() as current_time, version() as db_version`;
+
+    // Try to initialize database if not already done
+    await initializeDatabase();
+
+    // Check tables exist
+    const tables = (await sql`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `) as unknown as TableRow[];
+
+    // Test each table (count check disabled due to dynamic SQL limitations)
+    const tableTests = [];
+    const tableNames = [
+      "admins",
+      "categories",
+      "products",
+      "stocks",
+      "transactions",
+      "activity_logs",
+    ];
+
+    for (const tableName of tableNames) {
+      const found = tables.some((t) => t.table_name === tableName);
+      tableTests.push({
+        table: tableName,
+        exists: found,
+      });
+    }
+
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Neon database connected successfully!",
+        mode: "database",
+        connection: {
+          timestamp: result[0].current_time,
+          version: result[0].db_version,
+        },
+        tables: tables.map((t: TableRow) => t.table_name),
+        tableTests,
+      },
+      { status: 200 }
+    );
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Database test error:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        message: "Database connection error",
+        error: errorMessage,
+        mode: "error",
+        details: "Check your NEON_DATABASE_URL in .env.local",
+      },
+      { status: 500 }
+    );
   }
 }

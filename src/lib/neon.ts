@@ -1,13 +1,13 @@
-import { neon } from '@neondatabase/serverless';
+import { neon } from "@neondatabase/serverless";
 
 // Create Neon database client
 export function createClient() {
   const databaseUrl = process.env.NEON_DATABASE_URL;
-  
+
   if (!databaseUrl) {
-    throw new Error('NEON_DATABASE_URL is not set in environment variables');
+    throw new Error("NEON_DATABASE_URL is not set in environment variables");
   }
-  
+
   return neon(databaseUrl);
 }
 
@@ -15,7 +15,7 @@ export function createClient() {
 export const initializeDatabase = async () => {
   try {
     const sql = createClient();
-    
+
     // Create tables if they don't exist
     await sql`
       CREATE TABLE IF NOT EXISTS admins (
@@ -94,9 +94,24 @@ export const initializeDatabase = async () => {
       ON CONFLICT (username) DO NOTHING
     `;
 
-    console.log('Database initialized successfully');
+    // Insert default categories if not exists
+    const existingCategories = await sql`SELECT COUNT(*) as count FROM categories`;
+    if (existingCategories[0].count === 0) {
+      await sql`
+        INSERT INTO categories (name, description) VALUES
+        ('Screens', 'LCD, OLED, and touch screen panels'),
+        ('Batteries', 'Mobile phone batteries and power cells'),
+        ('Chargers', 'Charging cables, adapters, and wireless chargers'),
+        ('Speakers', 'Phone speakers and audio components'),
+        ('Cameras', 'Camera modules, front and rear'),
+        ('IC / Chips', 'Integrated circuits and chipsets'),
+        ('Other Parts', 'Miscellaneous mobile phone parts')
+      `;
+    }
+
+    console.log("Database initialized successfully");
   } catch (error) {
-    console.error('Database initialization error:', error);
+    console.error("Database initialization error:", error);
     throw error;
   }
 };

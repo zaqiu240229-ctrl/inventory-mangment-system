@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/neon";
 
 // GET single category
 export async function GET(
@@ -7,15 +7,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createClient();
+  const sql = createClient();
 
-  const { data, error } = await supabase.from("categories").select("*").eq("id", id).single();
+  const data = await sql`SELECT * FROM categories WHERE id = ${id}`;
 
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 404 });
+  if (data.length === 0) {
+    return NextResponse.json({ success: false, error: "Category not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ success: true, data });
+  return NextResponse.json({ success: true, data: data[0] });
 }
 
 // PUT update category
@@ -24,35 +24,55 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createClient();
+  const sql = createClient();
   const body = await request.json();
 
   const { name, description, is_active } = body;
 
-  const updateData: Record<string, unknown> = {};
+  const updateData: any = {};
   if (name !== undefined) updateData.name = name.trim();
   if (description !== undefined) updateData.description = description?.trim() || null;
   if (is_active !== undefined) updateData.is_active = is_active;
 
-  const { data, error } = await supabase
-    .from("categories")
-    .update(updateData)
-    .eq("id", id)
-    .select()
-    .single();
+  // Build dynamic UPDATE query
+  const updates: string[] = [];
+  const values: any[] = [];
+  let paramIndex = 2; // Start at 2 because $1 will be id
 
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (updateData.name !== undefined) {
+    updates.push(`name = $${paramIndex++}`);
+    values.push(updateData.name);
+  }
+  if (updateData.description !== undefined) {
+    updates.push(`description = $${paramIndex++}`);
+    values.push(updateData.description);
+  }
+  if (updateData.is_active !== undefined) {
+    updates.push(`is_active = $${paramIndex++}`);
+    values.push(updateData.is_active);
   }
 
-  await supabase.from("activity_logs").insert({
-    action: "UPDATE",
-    entity_type: "category",
-    entity_id: id,
-    details: updateData,
-  });
+  if (updates.length === 0) {
+    return NextResponse.json({ success: false, error: "No fields to update" }, { status: 400 });
+  }
 
-  return NextResponse.json({ success: true, data });
+  const data = await sql`
+    UPDATE categories 
+    SET ${sql(updates.join(', '))}
+    WHERE id = ${id}
+    RETURNING *
+  `;
+
+  if (data.length === 0) {
+    return NextResponse.json({ success: false, error: "Category not found" }, { status: 404 });
+  }
+
+  await sql`
+    INSERT INTO activity_logs (action, entity_type, entity_id, details)
+    VALUES ('UPDATE', 'category', ${id}, ${JSON.stringify(updateData)})
+  `;
+
+  return NextResponse.json({ success: true, data: data[0] });
 }
 
 // DELETE category (disable)
@@ -61,25 +81,26 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const supabase = await createClient();
+  const sql = createClient();
 
-  const { data, error } = await supabase
-    .from("categories")
-    .update({ is_active: false })
-    .eq("id", id)
-    .select()
-    .single();
+  const data = await sql`
+    UPDATE categories 
+    SET is_active = false
+    WHERE id = ${id}
+    RETURNING *
+  `;
 
-  if (error) {
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  if (data.length === 0) {
+    return NextResponse.json({ success: false, error: "Category not found" }, { status: 404 });
   }
 
-  await supabase.from("activity_logs").insert({
-    action: "DELETE",
-    entity_type: "category",
-    entity_id: id,
-    details: { name: data.name },
-  });
+  await sql`
+    INSERT INTO activity_logs (action, entity_type, entity_id, details)
+    VALUES ('DELETE', 'category', ${id}, ${JSON.stringify({ name: data[0].name })})
+  `;
+
+  return NextResponse.json({ success: true, data: data[0] });
+}
 
   return NextResponse.json({ success: true, data });
 }
