@@ -93,7 +93,7 @@ export async function GET(request: NextRequest) {
   try {
     const client = createClient();
 
-    // Fetch all transactions
+    // Fetch all transactions (date filtering is done on the frontend per period)
     const transactionsResult = await client`
       SELECT 
         id,

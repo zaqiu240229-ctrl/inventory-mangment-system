@@ -2,7 +2,7 @@
 
 import React from "react";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Bell, Cpu } from "lucide-react";
+import { ChevronDown, Bell, Cpu, Menu } from "lucide-react";
 import { ModeToggle } from "@/components/theme-toggle";
 
 const pageTitles: Record<string, string> = {
@@ -17,7 +17,11 @@ const pageTitles: Record<string, string> = {
   "/logs": "Activity Logs",
 };
 
-export default function Header() {
+interface HeaderProps {
+  onMenuToggle?: () => void;
+}
+
+export default function Header({ onMenuToggle }: HeaderProps) {
   const pathname = usePathname();
   const title = pageTitles[pathname] || "Dashboard";
 
@@ -25,6 +29,13 @@ export default function Header() {
     <header className="h-16 bg-card border-b border-border flex items-center justify-between px-6 sticky top-0 z-30">
       {/* Left - Page Title & Breadcrumb */}
       <div className="flex items-center gap-4">
+        <button
+          onClick={onMenuToggle}
+          className="lg:hidden p-2 hover:bg-secondary rounded-lg transition-colors"
+          aria-label="Toggle menu"
+        >
+          <Menu className="w-5 h-5 text-foreground" />
+        </button>
         <div className="flex items-center gap-2">
           <Cpu className="w-5 h-5 text-blue-400" />
           <h1 className="text-lg font-semibold text-foreground">{title}</h1>

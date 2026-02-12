@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   TrendingUp,
@@ -57,28 +57,10 @@ export default function ReportsPage() {
     fetchReports();
   }, []);
 
-  useEffect(() => {
-    setLoading(true);
-    fetchReports(selectedDate || undefined);
-  }, [selectedDate]);
-
-  const selectedDateRef = useRef(selectedDate);
-
-  // Keep ref updated with current selectedDate
-  useEffect(() => {
-    selectedDateRef.current = selectedDate;
-  }, [selectedDate]);
-
-  const fetchReports = async (date?: string) => {
+  const fetchReports = async () => {
     try {
       setLoading(true);
-
-      let url = "/api/reports";
-      if (date) {
-        // For single date selection, we'll use it as both start and end date
-        url += `?startDate=${date}&endDate=${date}`;
-      }
-      const response = await fetch(url);
+      const response = await fetch("/api/reports");
       const data = await response.json();
       if (data.success) {
         setReports(data.data);
@@ -116,20 +98,53 @@ export default function ReportsPage() {
   const summary = reports.summary;
 
   // Calculate profits for specific periods based on selected date
-  const selectedDateObj = selectedDate ? new Date(selectedDate) : null;
+  const selectedDateObj = selectedDate ? new Date(selectedDate + "T00:00:00") : new Date();
   const today = new Date();
   const isTodaySelected = selectedDate === today.toISOString().split("T")[0];
 
-  // Get today's profit for all cards
-  const todayProfit = reports.daily.length > 0 ? reports.daily[0].profit : 0;
+  // Find the matching report entry for each period based on selected date
+  const findDailyProfit = (): number => {
+    // Daily period key format: "YYYY-MM-DD"
+    const match = reports.daily.find((r) => r.period === selectedDate);
+    return match?.profit || 0;
+  };
 
-  // Create dynamic labels based on selected date
+  const findWeeklyProfit = (): number => {
+    // Weekly period key format: "February 2026 - Week 2"
+    const year = selectedDateObj.getFullYear();
+    const month = selectedDateObj.getMonth();
+    const monthName = selectedDateObj.toLocaleString("en-US", { month: "long" });
+    const firstDayOfMonth = new Date(year, month, 1);
+    const dayOfMonth = selectedDateObj.getDate();
+    const weekOfMonth = Math.ceil((dayOfMonth + firstDayOfMonth.getDay() - 1) / 7);
+    const weekKey = `${monthName} ${year} - Week ${weekOfMonth}`;
+    const match = reports.weekly.find((r) => r.period === weekKey);
+    return match?.profit || 0;
+  };
+
+  const findMonthlyProfit = (): number => {
+    // Monthly period key format: "February 2026"
+    const monthName = selectedDateObj.toLocaleString("en-US", { month: "long" });
+    const year = selectedDateObj.getFullYear();
+    const monthKey = `${monthName} ${year}`;
+    const match = reports.monthly.find((r) => r.period === monthKey);
+    return match?.profit || 0;
+  };
+
+  const findYearlyProfit = (): number => {
+    // Yearly period key format: "2026"
+    const yearKey = selectedDateObj.getFullYear().toString();
+    const match = reports.yearly.find((r) => r.period === yearKey);
+    return match?.profit || 0;
+  };
+
+  // Create dynamic labels based on selected date, using correct period data
   const allProfits = [
     {
       label: isTodaySelected
         ? "Today"
         : selectedDateObj?.toLocaleDateString("en-US", { weekday: "long" }) || "Today",
-      profit: todayProfit, // Always show today's profit
+      profit: findDailyProfit(),
       periodType: "daily" as const,
       isClicked: selectedPeriodType === "daily",
     },
@@ -137,7 +152,7 @@ export default function ReportsPage() {
       label: isTodaySelected
         ? "This Week"
         : `Week of ${selectedDateObj?.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
-      profit: todayProfit, // Always show today's profit
+      profit: findWeeklyProfit(),
       periodType: "weekly" as const,
       isClicked: selectedPeriodType === "weekly",
     },
@@ -145,13 +160,13 @@ export default function ReportsPage() {
       label: isTodaySelected
         ? "This Month"
         : selectedDateObj?.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
-      profit: todayProfit, // Always show today's profit
+      profit: findMonthlyProfit(),
       periodType: "monthly" as const,
       isClicked: selectedPeriodType === "monthly",
     },
     {
       label: isTodaySelected ? "This Year" : selectedDateObj?.getFullYear().toString(),
-      profit: todayProfit, // Always show today's profit
+      profit: findYearlyProfit(),
       periodType: "yearly" as const,
       isClicked: selectedPeriodType === "yearly",
     },
