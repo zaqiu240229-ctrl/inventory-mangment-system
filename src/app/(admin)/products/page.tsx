@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { demoDataStore, isDemoMode } from "@/lib/demo-data";
 import type { Product, Category } from "@/types";
 import { formatCurrency, formatPriceInIQDSync } from "@/lib/utils";
 import Modal from "@/components/ui/Modal";
@@ -16,8 +14,6 @@ import { Plus, Pencil, Trash2, RotateCcw, DollarSign, Minus } from "lucide-react
 
 const PAGE_SIZE = 6;
 
-
-
 export default function ProductsPage() {
   const { toast } = useToast();
   const [allProducts, setAllProducts] = useState<Product[]>([]);
@@ -30,17 +26,22 @@ export default function ProductsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [bulkProducts, setBulkProducts] = useState<Array<{
-    name: string;
-    model: string;
-    category_id: string;
-    buy_price: number;
-    sell_price: number;
-    currency: "IQD" | "USD";
-    initial_quantity: number;
-  }>>([]);
+  const [bulkProducts, setBulkProducts] = useState<
+    Array<{
+      name: string;
+      model: string;
+      category_id: string;
+      buy_price: number;
+      sell_price: number;
+      currency: "IQD" | "USD";
+      initial_quantity: number;
+    }>
+  >([]);
   const [bulkSaving, setBulkSaving] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; product: Product | null }>({ show: false, product: null });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; product: Product | null }>({
+    show: false,
+    product: null,
+  });
   const [showSellModal, setShowSellModal] = useState(false);
   const [sellingProduct, setSellingProduct] = useState<Product | null>(null);
   const [sellQuantity, setSellQuantity] = useState("");
@@ -57,58 +58,46 @@ export default function ProductsPage() {
   });
 
   const fetchCategories = useCallback(async () => {
-    if (isDemoMode) {
-      setCategories(demoDataStore.getCategories());
-      return;
+    try {
+      const res = await fetch("/api/categories");
+      const result = await res.json();
+      if (result.success) setCategories(result.data);
+    } catch (err) {
+      console.error("Error fetching categories:", err);
     }
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("categories")
-      .select("*")
-      .eq("is_active", true)
-      .order("name");
-    if (data) setCategories(data);
   }, []);
 
   const fetchProducts = useCallback(async () => {
-    if (isDemoMode) {
-      setAllProducts(demoDataStore.getProducts());
-      setLoading(false);
-      return;
+    try {
+      const res = await fetch("/api/products");
+      const result = await res.json();
+      if (result.success) {
+        // Normalize stock format
+        const normalized = result.data.map((p: any) => ({
+          ...p,
+          stock:
+            Array.isArray(p.stock) && p.stock.length > 0 ? p.stock[0] : p.stock || { quantity: 0 },
+        }));
+        setAllProducts(normalized);
+      }
+    } catch (err) {
+      console.error("Error fetching products:", err);
     }
-    const supabase = createClient();
-
-    const { data, error } = await supabase
-      .from("products")
-      .select("*, category:categories(*), stock:stocks(*)")
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false });
-
-    if (data) setAllProducts(data);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchCategories();
     fetchProducts();
-    
-    // Subscribe to demo data changes
-    if (isDemoMode) {
-      const unsubscribe = demoDataStore.subscribe(() => {
-        setAllProducts(demoDataStore.getProducts());
-        setCategories(demoDataStore.getCategories());
-      });
-      return unsubscribe;
-    }
   }, [fetchCategories, fetchProducts]);
 
   // Filter and paginate products
-  const filteredProducts = allProducts.filter(p => 
-    !p.deleted_at && (
-      !search || 
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.model.toLowerCase().includes(search.toLowerCase())
-    )
+  const filteredProducts = allProducts.filter(
+    (p) =>
+      !p.deleted_at &&
+      (!search ||
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.model.toLowerCase().includes(search.toLowerCase()))
   );
   const totalCount = filteredProducts.length;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
@@ -120,41 +109,62 @@ export default function ProductsPage() {
   };
 
   const resetForm = () => {
-    setFormData({ name: "", model: "", category_id: "", buy_price: 0, sell_price: 0, currency: "IQD", initial_quantity: 0 });
+    setFormData({
+      name: "",
+      model: "",
+      category_id: "",
+      buy_price: 0,
+      sell_price: 0,
+      currency: "IQD",
+      initial_quantity: 0,
+    });
     setError("");
     setEditingProduct(null);
   };
 
   const openCreate = () => {
     setEditingProduct(null);
-    setFormData({ name: "", model: "", category_id: "", buy_price: 0, sell_price: 0, currency: "IQD", initial_quantity: 0 });
+    setFormData({
+      name: "",
+      model: "",
+      category_id: "",
+      buy_price: 0,
+      sell_price: 0,
+      currency: "IQD",
+      initial_quantity: 0,
+    });
     setError("");
     setShowModal(true);
   };
 
   const openBulkModal = () => {
-    setBulkProducts([{
-      name: "",
-      model: "",
-      category_id: "",
-      buy_price: 0,
-      sell_price: 0,
-      currency: "IQD",
-      initial_quantity: 0,
-    }]);
+    setBulkProducts([
+      {
+        name: "",
+        model: "",
+        category_id: "",
+        buy_price: 0,
+        sell_price: 0,
+        currency: "IQD",
+        initial_quantity: 0,
+      },
+    ]);
     setShowBulkModal(true);
   };
 
   const addBulkProduct = () => {
-    setBulkProducts([...bulkProducts, {
-      name: "",
-      model: "",
-      category_id: "",
-      buy_price: 0,
-      sell_price: 0,
-      currency: "IQD",
-      initial_quantity: 0,
-    }]);
+    setBulkProducts([
+      ...bulkProducts,
+      {
+        name: "",
+        model: "",
+        category_id: "",
+        buy_price: 0,
+        sell_price: 0,
+        currency: "IQD",
+        initial_quantity: 0,
+      },
+    ]);
   };
 
   const removeBulkProduct = (index: number) => {
@@ -191,92 +201,52 @@ export default function ProductsPage() {
     setSaving(true);
     setError("");
 
-    // Demo mode - use centralized data store
-    if (isDemoMode) {
-      try {
-        if (editingProduct) {
-          demoDataStore.updateProduct(editingProduct.id, {
-            name: formData.name,
-            model: formData.model,
-            category_id: formData.category_id,
-            buy_price: formData.buy_price,
-            sell_price: formData.sell_price,
-            currency: formData.currency,
-          });
-        } else {
-          const newProduct = demoDataStore.addProduct({
-            name: formData.name,
-            model: formData.model,
-            category_id: formData.category_id,
-            buy_price: formData.buy_price,
-            sell_price: formData.sell_price,
-            currency: formData.currency,
-          });
-          
-          // Set initial stock if specified
-          if (formData.initial_quantity > 0) {
-            demoDataStore.updateStock(newProduct.id, formData.initial_quantity);
-            // Create BUY transaction for initial stock
-            demoDataStore.addTransaction({
-              product_id: newProduct.id,
-              type: "BUY",
-              quantity: formData.initial_quantity,
-              price: formData.buy_price,
-              total: formData.initial_quantity * formData.buy_price,
-              currency: formData.currency,
-            });
-          }
-        }
-        setShowModal(false);
-        resetForm();
-      } catch (err) {
-        setError("Failed to save product");
-      }
-      setSaving(false);
-      return;
-    }
-
-    const supabase = createClient();
-
     try {
       if (editingProduct) {
-        const { error: updateError } = await supabase
-          .from("products")
-          .update({
+        const res = await fetch(`/api/products/${editingProduct.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             name: formData.name,
             model: formData.model,
             category_id: formData.category_id,
             buy_price: formData.buy_price,
             sell_price: formData.sell_price,
-          })
-          .eq("id", editingProduct.id);
-        if (updateError) throw updateError;
+          }),
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error);
       } else {
-        const { data: newProduct, error: insertError } = await supabase
-          .from("products")
-          .insert({
+        const res = await fetch("/api/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             name: formData.name,
             model: formData.model,
             category_id: formData.category_id,
             buy_price: formData.buy_price,
             sell_price: formData.sell_price,
-          })
-          .select()
-          .single();
+          }),
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error);
 
-        if (insertError) throw insertError;
-
-        if (newProduct) {
-          await supabase.from("stocks").insert({
-            product_id: newProduct.id,
-            quantity: formData.initial_quantity || 0,
-            min_alert_quantity: 5,
+        // Add initial stock if specified
+        if (formData.initial_quantity > 0 && result.data?.id) {
+          await fetch("/api/stock", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              product_id: result.data.id,
+              quantity: formData.initial_quantity,
+              type: "BUY",
+              price: formData.buy_price,
+            }),
           });
         }
       }
 
       setShowModal(false);
-      setAllProducts([]);
       fetchProducts();
       resetForm();
     } catch (err: unknown) {
@@ -320,56 +290,32 @@ export default function ProductsPage() {
     setBulkSaving(true);
 
     try {
-      // Demo mode
-      if (isDemoMode) {
-        for (const product of bulkProducts) {
-          const newProduct = demoDataStore.addProduct({
+      for (const product of bulkProducts) {
+        const res = await fetch("/api/products", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             name: product.name,
             model: product.model,
             category_id: product.category_id,
             buy_price: product.buy_price,
             sell_price: product.sell_price,
-            currency: product.currency,
-          });
+          }),
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error);
 
-          if (product.initial_quantity > 0) {
-            demoDataStore.updateStock(newProduct.id, product.initial_quantity);
-            demoDataStore.addTransaction({
-              product_id: newProduct.id,
+        if (product.initial_quantity > 0 && result.data?.id) {
+          await fetch("/api/stock", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              product_id: result.data.id,
+              quantity: product.initial_quantity,
               type: "BUY",
-              quantity: product.initial_quantity,
               price: product.buy_price,
-              total: product.initial_quantity * product.buy_price,
-              currency: product.currency,
-            });
-          }
-        }
-      } else {
-        // Real database
-        const supabase = createClient();
-        for (const product of bulkProducts) {
-          const { data: newProduct, error } = await supabase
-            .from("products")
-            .insert({
-              name: product.name,
-              model: product.model,
-              category_id: product.category_id,
-              buy_price: product.buy_price,
-              sell_price: product.sell_price,
-              currency: product.currency,
-            })
-            .select()
-            .single();
-
-          if (error) throw error;
-
-          if (newProduct && product.initial_quantity > 0) {
-            await supabase.from("stocks").insert({
-              product_id: newProduct.id,
-              quantity: product.initial_quantity,
-              min_alert_quantity: 5,
-            });
-          }
+            }),
+          });
         }
       }
 
@@ -402,37 +348,15 @@ export default function ProductsPage() {
     if (!product) return;
 
     try {
-      // Demo mode - use centralized data store
-      if (isDemoMode) {
-        demoDataStore.deleteProduct(product.id);
-        setAllProducts(demoDataStore.getProducts());
-        toast({
-          title: "Product deleted",
-          description: `"${product.name}" has been moved to recovery.`,
-        });
-        return;
-      }
+      const res = await fetch(`/api/products/${product.id}`, { method: "DELETE" });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error);
 
-      const supabase = createClient();
-      const { error } = await supabase
-        .from("products")
-        .update({ deleted_at: new Date().toISOString() })
-        .eq("id", product.id);
-
-      if (!error) {
-        setAllProducts([]);
-        fetchProducts();
-        toast({
-          title: "Product deleted",
-          description: `"${product.name}" has been moved to recovery.`,
-        });
-      } else {
-        toast({
-          title: "Error",
-          description: "Failed to delete product",
-          variant: "destructive",
-        });
-      }
+      fetchProducts();
+      toast({
+        title: "Product deleted",
+        description: `"${product.name}" has been moved to recovery.`,
+      });
     } catch (err) {
       toast({
         title: "Error",
@@ -441,7 +365,6 @@ export default function ProductsPage() {
       });
     }
   };
-
 
   const openSellModal = (product: Product) => {
     setSellingProduct(product);
@@ -477,64 +400,27 @@ export default function ProductsPage() {
     setSellMessage("Processing sale...");
 
     try {
-      // Demo mode - use centralized data store
-      if (isDemoMode) {
-        const newStock = currentStock - quantityNum;
-        const success = demoDataStore.updateStock(sellingProduct.id, newStock);
+      const res = await fetch("/api/stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          product_id: sellingProduct.id,
+          quantity: quantityNum,
+          type: "SELL",
+          price: sellingProduct.sell_price,
+        }),
+      });
+      const result = await res.json();
 
-        if (success) {
-          demoDataStore.addTransaction({
-            product_id: sellingProduct.id,
-            type: "SELL",
-            quantity: quantityNum,
-            price: sellingProduct.sell_price,
-            total: quantityNum * sellingProduct.sell_price,
-            currency: sellingProduct.currency,
-          });
-
-          setAllProducts(demoDataStore.getProducts());
-          setSellMessage(`Successfully sold ${quantityNum} ${sellingProduct.name}(s)`);
-
-          setTimeout(() => {
-            closeSellModal();
-          }, 1500);
-        } else {
-          setSellMessage("Sale failed. Please try again.");
-          setSelling(false);
-        }
-      } else {
-        // Production mode - use Supabase
-        const supabase = createClient();
-
-        // Update stock
-        const { error: stockError } = await supabase
-          .from("stocks")
-          .update({ quantity: currentStock - quantityNum })
-          .eq("product_id", sellingProduct.id);
-
-        if (stockError) throw stockError;
-
-        // Add transaction
-        const { error: transactionError } = await supabase
-          .from("transactions")
-          .insert({
-            product_id: sellingProduct.id,
-            type: "SELL",
-            quantity: quantityNum,
-            price: sellingProduct.sell_price,
-            total: quantityNum * sellingProduct.sell_price,
-            currency: sellingProduct.currency,
-          });
-
-        if (transactionError) throw transactionError;
-
-        setAllProducts([]);
+      if (result.success) {
         fetchProducts();
         setSellMessage(`Successfully sold ${quantityNum} ${sellingProduct.name}(s)`);
-
         setTimeout(() => {
           closeSellModal();
         }, 1500);
+      } else {
+        setSellMessage(result.error || "Sale failed. Please try again.");
+        setSelling(false);
       }
     } catch (error) {
       console.error("Error selling product:", error);
@@ -543,13 +429,24 @@ export default function ProductsPage() {
     }
   };
 
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <svg className="animate-spin w-8 h-8 text-blue-500" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+            fill="none"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
         </svg>
       </div>
     );
@@ -567,10 +464,7 @@ export default function ProductsPage() {
           />
         </div>
         <div className="flex items-center gap-3">
-          <Link
-            href="/products/recovery"
-            className="btn-secondary flex items-center gap-2 text-sm"
-          >
+          <Link href="/products/recovery" className="btn-secondary flex items-center gap-2 text-sm">
             <RotateCcw className="w-4 h-4" />
             Recovery
           </Link>
@@ -648,17 +542,22 @@ export default function ProductsPage() {
                       <td className="px-6 py-4 text-sm font-medium text-white">
                         {formatPriceInIQDSync(product.sell_price, product.currency)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-300">
-                        {product.currency}
+                      <td className="px-6 py-4 text-sm text-slate-300">{product.currency}</td>
+                      <td className="px-6 py-4">
+                        <Badge
+                          variant={
+                            product.stock?.quantity === 0
+                              ? "red"
+                              : product.stock?.quantity && product.stock.quantity <= 5
+                                ? "yellow"
+                                : "green"
+                          }
+                          size="sm"
+                        >
+                          {product.stock?.quantity || 0} units
+                        </Badge>
                       </td>
-                    <td className="px-6 py-4">
-                      <Badge 
-                        variant={product.stock?.quantity === 0 ? "red" : product.stock?.quantity && product.stock.quantity <= 5 ? "yellow" : "green"}
-                        size="sm"
-                      >
-                        {product.stock?.quantity || 0} units
-                      </Badge>
-                    </td>                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => openSellModal(product)}
@@ -774,13 +673,15 @@ export default function ProductsPage() {
               />
             </div>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-2">Currency</label>
             <div className="relative">
               <select
                 value={formData.currency}
-                onChange={(e) => setFormData({ ...formData, currency: e.target.value as "IQD" | "USD" })}
+                onChange={(e) =>
+                  setFormData({ ...formData, currency: e.target.value as "IQD" | "USD" })
+                }
                 className="input-field pr-10"
               >
                 <option value="IQD">🇮🇶 Dinar (IQD)</option>
@@ -795,10 +696,12 @@ export default function ProductsPage() {
               </div>
             </div>
           </div>
-          
+
           {!editingProduct && (
             <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">Initial Stock Quantity</label>
+              <label className="block text-sm font-medium text-slate-300 mb-2">
+                Initial Stock Quantity
+              </label>
               <input
                 type="number"
                 value={formData.initial_quantity}
@@ -811,7 +714,7 @@ export default function ProductsPage() {
               />
             </div>
           )}
-          
+
           <div className="flex gap-3 pt-2">
             <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">
               Cancel
@@ -847,14 +750,14 @@ export default function ProductsPage() {
                   </button>
                 )}
               </div>
-              
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1">Name *</label>
                   <input
                     type="text"
                     value={product.name}
-                    onChange={(e) => updateBulkProduct(index, 'name', e.target.value)}
+                    onChange={(e) => updateBulkProduct(index, "name", e.target.value)}
                     className="input-field text-sm"
                     placeholder="Product name"
                   />
@@ -864,7 +767,7 @@ export default function ProductsPage() {
                   <input
                     type="text"
                     value={product.model}
-                    onChange={(e) => updateBulkProduct(index, 'model', e.target.value)}
+                    onChange={(e) => updateBulkProduct(index, "model", e.target.value)}
                     className="input-field text-sm"
                     placeholder="Model"
                   />
@@ -875,7 +778,7 @@ export default function ProductsPage() {
                 <label className="block text-xs font-medium text-slate-400 mb-1">Category *</label>
                 <select
                   value={product.category_id}
-                  onChange={(e) => updateBulkProduct(index, 'category_id', e.target.value)}
+                  onChange={(e) => updateBulkProduct(index, "category_id", e.target.value)}
                   className="input-field text-sm"
                 >
                   <option value="">Select category</option>
@@ -892,8 +795,10 @@ export default function ProductsPage() {
                   <label className="block text-xs font-medium text-slate-400 mb-1">Buy Price</label>
                   <input
                     type="number"
-                    value={product.buy_price || ''}
-                    onChange={(e) => updateBulkProduct(index, 'buy_price', parseFloat(e.target.value) || 0)}
+                    value={product.buy_price || ""}
+                    onChange={(e) =>
+                      updateBulkProduct(index, "buy_price", parseFloat(e.target.value) || 0)
+                    }
                     className="input-field text-sm"
                     placeholder="0"
                     min="0"
@@ -901,11 +806,15 @@ export default function ProductsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Sell Price</label>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                    Sell Price
+                  </label>
                   <input
                     type="number"
-                    value={product.sell_price || ''}
-                    onChange={(e) => updateBulkProduct(index, 'sell_price', parseFloat(e.target.value) || 0)}
+                    value={product.sell_price || ""}
+                    onChange={(e) =>
+                      updateBulkProduct(index, "sell_price", parseFloat(e.target.value) || 0)
+                    }
                     className="input-field text-sm"
                     placeholder="0"
                     min="0"
@@ -917,7 +826,7 @@ export default function ProductsPage() {
                   <div className="relative">
                     <select
                       value={product.currency}
-                      onChange={(e) => updateBulkProduct(index, 'currency', e.target.value)}
+                      onChange={(e) => updateBulkProduct(index, "currency", e.target.value)}
                       className="input-field text-sm pr-8"
                     >
                       <option value="IQD">🇮🇶 Dinar</option>
@@ -933,11 +842,15 @@ export default function ProductsPage() {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Initial Qty</label>
+                  <label className="block text-xs font-medium text-slate-400 mb-1">
+                    Initial Qty
+                  </label>
                   <input
                     type="number"
-                    value={product.initial_quantity || ''}
-                    onChange={(e) => updateBulkProduct(index, 'initial_quantity', parseInt(e.target.value) || 0)}
+                    value={product.initial_quantity || ""}
+                    onChange={(e) =>
+                      updateBulkProduct(index, "initial_quantity", parseInt(e.target.value) || 0)
+                    }
                     className="input-field text-sm"
                     placeholder="0"
                     min="0"
@@ -947,10 +860,7 @@ export default function ProductsPage() {
             </div>
           ))}
 
-          <button
-            onClick={addBulkProduct}
-            className="w-full btn-secondary text-sm py-2"
-          >
+          <button onClick={addBulkProduct} className="w-full btn-secondary text-sm py-2">
             + Add Another Product
           </button>
         </div>
@@ -964,17 +874,23 @@ export default function ProductsPage() {
             disabled={bulkSaving}
             className="btn-primary flex-1 disabled:opacity-50"
           >
-            {bulkSaving ? "Adding..." : `Add ${bulkProducts.length} Product${bulkProducts.length !== 1 ? 's' : ''}`}
+            {bulkSaving
+              ? "Adding..."
+              : `Add ${bulkProducts.length} Product${bulkProducts.length !== 1 ? "s" : ""}`}
           </button>
         </div>
       </Modal>
-      
+
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
         open={deleteConfirm.show}
         onOpenChange={(open) => setDeleteConfirm({ show: open, product: null })}
         title="Delete Product"
-        description={deleteConfirm.product ? `Are you sure you want to delete "${deleteConfirm.product.name}"? This action can be undone from the Recovery page.` : ""}
+        description={
+          deleteConfirm.product
+            ? `Are you sure you want to delete "${deleteConfirm.product.name}"? This action can be undone from the Recovery page.`
+            : ""
+        }
         confirmText="Delete"
         cancelText="Cancel"
         variant="destructive"
@@ -995,7 +911,10 @@ export default function ProductsPage() {
                 <h3 className="font-medium text-white mb-2">{sellingProduct.name}</h3>
                 <div className="text-sm text-slate-300 space-y-1">
                   <p>Model: {sellingProduct.model}</p>
-                  <p>Sell Price: {formatPriceInIQDSync(sellingProduct.sell_price, sellingProduct.currency)}</p>
+                  <p>
+                    Sell Price:{" "}
+                    {formatPriceInIQDSync(sellingProduct.sell_price, sellingProduct.currency)}
+                  </p>
                   <p>Current Stock: {sellingProduct.stock?.quantity || 0} units</p>
                 </div>
               </div>
@@ -1017,13 +936,15 @@ export default function ProductsPage() {
               </div>
 
               {sellMessage && (
-                <div className={`text-sm px-3 py-2 rounded-lg ${
-                  sellMessage.includes("Successfully")
-                    ? "bg-green-500/10 border border-green-500/30 text-green-400"
-                    : sellMessage.includes("Cannot") || sellMessage.includes("failed")
-                    ? "bg-red-500/10 border border-red-500/30 text-red-400"
-                    : "bg-blue-500/10 border border-blue-500/30 text-blue-400"
-                }`}>
+                <div
+                  className={`text-sm px-3 py-2 rounded-lg ${
+                    sellMessage.includes("Successfully")
+                      ? "bg-green-500/10 border border-green-500/30 text-green-400"
+                      : sellMessage.includes("Cannot") || sellMessage.includes("failed")
+                        ? "bg-red-500/10 border border-red-500/30 text-red-400"
+                        : "bg-blue-500/10 border border-blue-500/30 text-blue-400"
+                  }`}
+                >
                   {sellMessage}
                 </div>
               )}
@@ -1051,4 +972,3 @@ export default function ProductsPage() {
     </div>
   );
 }
-

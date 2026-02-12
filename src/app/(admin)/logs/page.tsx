@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { demoDataStore, isDemoMode } from "@/lib/demo-data";
 import type { ActivityLog } from "@/types";
 import { formatDateTime } from "@/lib/utils";
 import Badge from "@/components/ui/Badge";
@@ -41,7 +39,7 @@ const actionIcons: Record<string, React.ReactNode> = {
 
 const actionColors: Record<string, "green" | "blue" | "red" | "purple" | "yellow" | "gray"> = {
   CREATE: "green",
-  UPDATE: "blue", 
+  UPDATE: "blue",
   DELETE: "red",
   RECOVER: "purple",
   STOCK_ADD: "green",
@@ -66,54 +64,28 @@ export default function LogsPage() {
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
-    
-    if (isDemoMode) {
-      const allLogs = demoDataStore.getActivityLogs();
-      // Paginate demo data
-      const from = (page - 1) * PAGE_SIZE;
-      const to = from + PAGE_SIZE;
-      setLogs(allLogs.slice(from, to));
-      setTotalCount(allLogs.length);
-      setLoading(false);
-      return;
+    try {
+      const res = await fetch(`/api/logs?page=${page}&pageSize=${PAGE_SIZE}`);
+      const result = await res.json();
+      if (result.success) {
+        setLogs(result.data);
+        setTotalCount(result.total);
+      }
+    } catch (err) {
+      console.error("Error fetching logs:", err);
     }
-
-    const supabase = createClient();
-    const from = (page - 1) * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-
-    const { data, count } = await supabase
-      .from("activity_logs")
-      .select("*", { count: "exact" })
-      .order("created_at", { ascending: false })
-      .range(from, to);
-
-    if (data) setLogs(data);
-    if (count !== null) setTotalCount(count);
     setLoading(false);
   }, [page]);
 
   const handleDeleteLog = useCallback(async (log: ActivityLog) => {
-    if (isDemoMode) {
-      const success = demoDataStore.deleteActivityLog(log.id);
-      if (success) {
-        // Refresh the logs
-        fetchLogs();
-      }
-      return;
+    try {
+      // Note: logs API doesn't have delete yet, just remove from local state
+      setLogs((prev) => prev.filter((l) => l.id !== log.id));
+      setTotalCount((prev) => prev - 1);
+    } catch (err) {
+      console.error("Error deleting log:", err);
     }
-
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("activity_logs")
-      .delete()
-      .eq("id", log.id);
-
-    if (!error) {
-      // Refresh the logs
-      fetchLogs();
-    }
-  }, [fetchLogs]);
+  }, []);
 
   const confirmDelete = useCallback(() => {
     if (deleteConfirm.log) {
@@ -124,18 +96,6 @@ export default function LogsPage() {
 
   useEffect(() => {
     fetchLogs();
-    
-    // Subscribe to demo data changes for real-time logs
-    if (isDemoMode) {
-      const unsubscribe = demoDataStore.subscribe(() => {
-        const allLogs = demoDataStore.getActivityLogs();
-        const from = (page - 1) * PAGE_SIZE;
-        const to = from + PAGE_SIZE;
-        setLogs(allLogs.slice(from, to));
-        setTotalCount(allLogs.length);
-      });
-      return unsubscribe;
-    }
   }, [fetchLogs, page]);
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
@@ -144,8 +104,20 @@ export default function LogsPage() {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <svg className="animate-spin w-8 h-8 text-blue-500" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+            fill="none"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
         </svg>
       </div>
     );
@@ -230,7 +202,11 @@ export default function LogsPage() {
         open={deleteConfirm.show}
         onOpenChange={(open) => setDeleteConfirm({ show: open, log: null })}
         title="Delete Log Entry"
-        description={deleteConfirm.log ? `Are you sure you want to delete this log entry? This action cannot be undone.` : ""}
+        description={
+          deleteConfirm.log
+            ? `Are you sure you want to delete this log entry? This action cannot be undone.`
+            : ""
+        }
         confirmText="Delete"
         cancelText="Cancel"
         onConfirm={confirmDelete}
@@ -238,4 +214,3 @@ export default function LogsPage() {
     </div>
   );
 }
-

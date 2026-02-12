@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/neon";
 import { isDemoMode, demoDataStore } from "@/lib/demo-data";
 
 // GET dashboard stats
@@ -14,8 +14,8 @@ export async function GET(_request: NextRequest) {
     const totalProducts = products.length;
     const totalStock = stocks.reduce((sum, s) => sum + s.quantity, 0);
 
-    const buyTxns = transactions.filter(t => t.type === "BUY");
-    const sellTxns = transactions.filter(t => t.type === "SELL");
+    const buyTxns = transactions.filter((t) => t.type === "BUY");
+    const sellTxns = transactions.filter((t) => t.type === "SELL");
 
     const totalBuyValue = buyTxns.reduce((sum, t) => {
       const totalIQD = t.currency === "USD" ? Number(t.total) * 1460 : Number(t.total);
@@ -33,12 +33,12 @@ export async function GET(_request: NextRequest) {
 
     // Low stock alerts
     const lowStockAlerts = stocks
-      .filter(s => {
-        const product = products.find(p => p.id === s.product_id);
+      .filter((s) => {
+        const product = products.find((p) => p.id === s.product_id);
         return product && !product.deleted_at && s.quantity <= s.min_alert_quantity;
       })
-      .map(s => {
-        const product = products.find(p => p.id === s.product_id)!;
+      .map((s) => {
+        const product = products.find((p) => p.id === s.product_id)!;
         return {
           product,
           stock: { quantity: s.quantity, min_alert_quantity: s.min_alert_quantity },
@@ -64,69 +64,86 @@ export async function GET(_request: NextRequest) {
     });
   }
 
-  const supabase = await createClient();
+  try {
+    const sql = createClient();
 
-  // Products count
-  const { count: totalProducts } = await supabase
-    .from("products")
-    .select("*", { count: "exact", head: true })
-    .is("deleted_at", null);
+    // Products count
+    const countResult = await sql`SELECT COUNT(*) as count FROM products WHERE deleted_at IS NULL`;
+    const totalProducts = parseInt(countResult[0].count);
 
-  // Total stock
-  const { data: stocks } = await supabase.from("stocks").select("quantity");
-  const totalStock = stocks?.reduce((sum: number, s: { quantity: number }) => sum + s.quantity, 0) || 0;
+    // Total stock
+    const stocksResult = await sql`SELECT COALESCE(SUM(quantity), 0) as total FROM stocks`;
+    const totalStock = parseInt(stocksResult[0].total);
 
-  // Buy/Sell totals
-  const { data: buyTxns } = await supabase
-    .from("transactions")
-    .select("total")
-    .eq("type", "BUY");
+    // Buy/Sell totals
+    const buyResult =
+      await sql`SELECT COALESCE(SUM(total), 0) as total FROM transactions WHERE type = 'BUY'`;
+    const sellResult =
+      await sql`SELECT COALESCE(SUM(total), 0) as total FROM transactions WHERE type = 'SELL'`;
+    const totalBuyValue = parseFloat(buyResult[0].total);
+    const totalSellValue = parseFloat(sellResult[0].total);
 
-  const { data: sellTxns } = await supabase
-    .from("transactions")
-    .select("total")
-    .eq("type", "SELL");
+    // Recent transactions
+    const recentTxns = await sql`
+      SELECT t.*, p.name as product_name, p.model as product_model,
+             p.buy_price as product_buy_price, p.sell_price as product_sell_price
+      FROM transactions t
+      LEFT JOIN products p ON t.product_id = p.id
+      ORDER BY t.created_at DESC
+      LIMIT 5
+    `;
+    const recentTransactions = recentTxns.map((t: any) => ({
+      ...t,
+      price: parseFloat(t.price),
+      total: parseFloat(t.total),
+      product: t.product_name
+        ? {
+            id: t.product_id,
+            name: t.product_name,
+            model: t.product_model,
+            buy_price: parseFloat(t.product_buy_price),
+            sell_price: parseFloat(t.product_sell_price),
+          }
+        : null,
+    }));
 
-  const totalBuyValue = buyTxns?.reduce((sum: number, t: { total: string | number }) => sum + Number(t.total), 0) || 0;
-  const totalSellValue = sellTxns?.reduce((sum: number, t: { total: string | number }) => sum + Number(t.total), 0) || 0;
-
-  // Recent transactions
-  const { data: recentTransactions } = await supabase
-    .from("transactions")
-    .select("*, product:products(*)")
-    .order("created_at", { ascending: false })
-    .limit(5);
-
-  // Low stock alerts
-  const { data: lowStockData } = await supabase
-    .from("stocks")
-    .select("*, product:products(*)")
-    .order("quantity", { ascending: true })
-    .limit(10);
-
-  const lowStockAlerts =
-    lowStockData
-      ?.filter((s: { product: any; quantity: number; min_alert_quantity: number }) =>
-        s.product && !s.product.deleted_at && s.quantity <= s.min_alert_quantity
-      )
-      .map((s: { product: any; quantity: number; min_alert_quantity: number }) => ({
-        product: s.product,
-        stock: { quantity: s.quantity, min_alert_quantity: s.min_alert_quantity },
-        status: s.quantity <= 0 ? "out_of_stock" : "low_stock",
-      })) || [];
-
-  return NextResponse.json({
-    success: true,
-    data: {
-      stats: {
-        totalProducts: totalProducts || 0,
-        totalStock,
-        totalBuyValue,
-        totalSellValue,
-        totalProfit: totalSellValue - totalBuyValue,
+    // Low stock alerts
+    const lowStockData = await sql`
+      SELECT s.quantity, s.min_alert_quantity,
+             p.id as prod_id, p.name, p.model, p.buy_price, p.sell_price, p.deleted_at
+      FROM stocks s
+      JOIN products p ON s.product_id = p.id
+      WHERE p.deleted_at IS NULL AND s.quantity <= s.min_alert_quantity
+      ORDER BY s.quantity ASC
+      LIMIT 10
+    `;
+    const lowStockAlerts = lowStockData.map((s: any) => ({
+      product: {
+        id: s.prod_id,
+        name: s.name,
+        model: s.model,
+        buy_price: parseFloat(s.buy_price),
+        sell_price: parseFloat(s.sell_price),
       },
-      lowStockAlerts,
-      recentTransactions: recentTransactions || [],
-    },
-  });
+      stock: { quantity: s.quantity, min_alert_quantity: s.min_alert_quantity },
+      status: s.quantity <= 0 ? "out_of_stock" : "low_stock",
+    }));
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        stats: {
+          totalProducts,
+          totalStock,
+          totalBuyValue,
+          totalSellValue,
+          totalProfit: totalSellValue - totalBuyValue,
+        },
+        lowStockAlerts,
+        recentTransactions,
+      },
+    });
+  } catch (error: any) {
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+  }
 }

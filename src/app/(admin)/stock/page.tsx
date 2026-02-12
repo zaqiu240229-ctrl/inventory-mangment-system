@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { demoDataStore } from "@/lib/demo-data";
 import SearchBar from "@/components/ui/SearchBar";
 import { formatPriceInIQDSync } from "@/lib/utils";
 
@@ -28,13 +27,13 @@ export default function StockManagement() {
   const [stocks, setStocks] = useState<StockItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  
+
   // Simple modal state
   const [showModal, setShowModal] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [quantity, setQuantity] = useState("");
   const [modalType, setModalType] = useState<"add" | "reduce">("add");
-  
+
   // Simple processing state
   const [processing, setProcessing] = useState(false);
   const [message, setMessage] = useState("");
@@ -42,11 +41,23 @@ export default function StockManagement() {
   // Load data
   const loadData = async () => {
     try {
-      const productsData = demoDataStore.getProducts();
-      const stocksData = demoDataStore.getStocks();
-      
-      setProducts(productsData);
-      setStocks(stocksData);
+      const prodRes = await fetch("/api/products");
+      const prodResult = await prodRes.json();
+      if (prodResult.success) {
+        setProducts(prodResult.data);
+      }
+
+      const stockRes = await fetch("/api/stock");
+      const stockResult = await stockRes.json();
+      if (stockResult.success) {
+        setStocks(
+          stockResult.data.map((s: { product_id: string; quantity: number }) => ({
+            product_id: s.product_id,
+            quantity: s.quantity,
+          }))
+        );
+      }
+
       setLoading(false);
     } catch (error) {
       console.error("Error loading data:", error);
@@ -64,10 +75,11 @@ export default function StockManagement() {
   };
 
   // Filter products based on search
-  const filteredProducts = products.filter(product =>
-    !search ||
-    product.name.toLowerCase().includes(search.toLowerCase()) ||
-    product.model.toLowerCase().includes(search.toLowerCase())
+  const filteredProducts = products.filter(
+    (product) =>
+      !search ||
+      product.name.toLowerCase().includes(search.toLowerCase()) ||
+      product.model.toLowerCase().includes(search.toLowerCase())
   );
 
   // Open modal
@@ -82,7 +94,7 @@ export default function StockManagement() {
   // Close modal
   const closeModal = () => {
     if (processing) return; // Don't close while processing
-    
+
     setShowModal(false);
     setSelectedProduct(null);
     setQuantity("");
@@ -91,7 +103,7 @@ export default function StockManagement() {
 
   // Simple stock update - no complex logic
   const updateStock = async () => {
-    // Simple validation  
+    // Simple validation
     if (!selectedProduct || !quantity || processing) {
       return;
     }
@@ -113,7 +125,7 @@ export default function StockManagement() {
 
     try {
       // Get current stock
-      const currentStock = stocks.find(s => s.product_id === selectedProduct.id);
+      const currentStock = stocks.find((s) => s.product_id === selectedProduct.id);
       const currentQty = currentStock?.quantity || 0;
 
       console.log(`Current stock: ${currentQty}`);
@@ -133,39 +145,43 @@ export default function StockManagement() {
 
       console.log(`New stock will be: ${newQty}`);
 
-      // Update stock in data store
-      const success = demoDataStore.updateStock(selectedProduct.id, newQty);
-      
-      if (success) {  
-        console.log(`✅ Stock updated successfully`);
-        
-        // Add transaction
-        demoDataStore.addTransaction({
+      // Update stock via API
+      const stockRes = await fetch("/api/stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           product_id: selectedProduct.id,
           type: modalType === "add" ? "BUY" : "SELL",
           quantity: quantityNum,
           price: modalType === "add" ? selectedProduct.buy_price : selectedProduct.sell_price,
-          total: quantityNum * (modalType === "add" ? selectedProduct.buy_price : selectedProduct.sell_price),
+          total:
+            quantityNum *
+            (modalType === "add" ? selectedProduct.buy_price : selectedProduct.sell_price),
           currency: selectedProduct.currency,
-        });
+        }),
+      });
+      const stockResult = await stockRes.json();
+
+      if (stockResult.success) {
+        console.log(`✅ Stock updated successfully`);
 
         // Reload data
         await loadData();
-        
-        setMessage(`Successfully ${modalType === "add" ? "added" : "reduced"} ${quantityNum} items`);
-        
+
+        setMessage(
+          `Successfully ${modalType === "add" ? "added" : "reduced"} ${quantityNum} items`
+        );
+
         // Close modal after short delay
         setTimeout(() => {
           setProcessing(false);
           closeModal();
         }, 1000);
-        
       } else {
         console.log(`❌ Stock update failed`);
         setMessage("Update failed. Please try again.");
         setProcessing(false);
       }
-      
     } catch (error) {
       console.error("Error updating stock:", error);
       setMessage("Error occurred. Please try again.");
@@ -208,7 +224,7 @@ export default function StockManagement() {
       <div className="card">
         <div className="p-6">
           <h2 className="text-xl font-semibold text-white mb-6">Products</h2>
-          
+
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -223,11 +239,14 @@ export default function StockManagement() {
               </thead>
               <tbody>
                 {filteredProducts.map((product) => {
-                  const stock = stocks.find(s => s.product_id === product.id);
+                  const stock = stocks.find((s) => s.product_id === product.id);
                   const currentQty = stock?.quantity || 0;
-                  
+
                   return (
-                    <tr key={product.id} className="border-b border-slate-800 hover:bg-slate-800/50">
+                    <tr
+                      key={product.id}
+                      className="border-b border-slate-800 hover:bg-slate-800/50"
+                    >
                       <td className="py-4 px-4">
                         <div className="text-white font-medium">{product.name}</div>
                       </td>
@@ -235,18 +254,24 @@ export default function StockManagement() {
                         <div className="text-slate-300">{product.model}</div>
                       </td>
                       <td className="py-4 px-4">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          currentQty === 0 
-                            ? 'bg-red-900/50 text-red-300' 
-                            : currentQty <= 5 
-                            ? 'bg-yellow-900/50 text-yellow-300'
-                            : 'bg-green-900/50 text-green-300'
-                        }`}>
+                        <span
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            currentQty === 0
+                              ? "bg-red-900/50 text-red-300"
+                              : currentQty <= 5
+                                ? "bg-yellow-900/50 text-yellow-300"
+                                : "bg-green-900/50 text-green-300"
+                          }`}
+                        >
                           {currentQty} units
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-slate-300">{formatPriceInIQDSync(product.buy_price, product.currency)}</td>
-                      <td className="py-4 px-4 text-slate-300">{formatPriceInIQDSync(product.sell_price, product.currency)}</td>
+                      <td className="py-4 px-4 text-slate-300">
+                        {formatPriceInIQDSync(product.buy_price, product.currency)}
+                      </td>
+                      <td className="py-4 px-4 text-slate-300">
+                        {formatPriceInIQDSync(product.sell_price, product.currency)}
+                      </td>
                       <td className="py-4 px-4">
                         <div className="flex gap-2">
                           <button
@@ -281,12 +306,17 @@ export default function StockManagement() {
             <h3 className="text-xl font-semibold text-white mb-4">
               {modalType === "add" ? "Add Stock" : "Reduce Stock"}
             </h3>
-            
+
             {selectedProduct && (
               <div className="mb-4">
-                <p className="text-slate-400 mb-2">Product: <span className="text-white">{selectedProduct.name}</span></p>
+                <p className="text-slate-400 mb-2">
+                  Product: <span className="text-white">{selectedProduct.name}</span>
+                </p>
                 <p className="text-slate-400 mb-4">
-                  Current Stock: <span className="text-white">{stocks.find(s => s.product_id === selectedProduct.id)?.quantity || 0} units</span>
+                  Current Stock:{" "}
+                  <span className="text-white">
+                    {stocks.find((s) => s.product_id === selectedProduct.id)?.quantity || 0} units
+                  </span>
                 </p>
               </div>
             )}
@@ -307,13 +337,15 @@ export default function StockManagement() {
             </div>
 
             {message && (
-              <div className={`mb-4 p-3 rounded-lg text-sm ${
-                message.includes("Successfully") 
-                  ? "bg-green-900/50 text-green-300" 
-                  : message.includes("Processing")
-                  ? "bg-blue-900/50 text-blue-300"
-                  : "bg-red-900/50 text-red-300"
-              }`}>
+              <div
+                className={`mb-4 p-3 rounded-lg text-sm ${
+                  message.includes("Successfully")
+                    ? "bg-green-900/50 text-green-300"
+                    : message.includes("Processing")
+                      ? "bg-blue-900/50 text-blue-300"
+                      : "bg-red-900/50 text-red-300"
+                }`}
+              >
                 {message}
               </div>
             )}

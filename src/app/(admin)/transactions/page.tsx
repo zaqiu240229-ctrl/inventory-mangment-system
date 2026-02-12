@@ -2,8 +2,6 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { demoDataStore, isDemoMode } from "@/lib/demo-data";
 import type { Transaction, Product } from "@/types";
 import { formatCurrency, formatDateTime, formatPriceInIQDSync } from "@/lib/utils";
 import Badge from "@/components/ui/Badge";
@@ -15,8 +13,6 @@ import { ArrowDownCircle, ArrowUpCircle, Trash2, BarChart3 } from "lucide-react"
 
 const PAGE_SIZE = 10;
 
-
-
 export default function TransactionsPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("transactions");
@@ -24,37 +20,25 @@ export default function TransactionsPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [filterType, setFilterType] = useState<"ALL" | "BUY" | "SELL">("ALL");
-  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; transaction: Transaction | null }>({ show: false, transaction: null });
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    show: boolean;
+    transaction: Transaction | null;
+  }>({ show: false, transaction: null });
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
-    
-    if (isDemoMode) {
-      setAllTransactions(demoDataStore.getTransactions());
-      setLoading(false);
-      return;
+    try {
+      const res = await fetch("/api/transactions");
+      const result = await res.json();
+      if (result.success) setAllTransactions(result.data);
+    } catch (err) {
+      console.error("Error fetching transactions:", err);
     }
-
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("transactions")
-      .select("*, product:products(*)")
-      .order("created_at", { ascending: false });
-
-    if (data) setAllTransactions(data);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchTransactions();
-    
-    // Subscribe to demo data changes for real-time updates
-    if (isDemoMode) {
-      const unsubscribe = demoDataStore.subscribe(() => {
-        setAllTransactions(demoDataStore.getTransactions());
-      });
-      return unsubscribe;
-    }
   }, [fetchTransactions]);
 
   const handleDelete = async () => {
@@ -62,28 +46,16 @@ export default function TransactionsPage() {
     if (!transaction) return;
 
     try {
-      if (isDemoMode) {
-        demoDataStore.deleteTransaction(transaction.id);
-        toast({
-          title: "Success",
-          description: "Transaction deleted successfully",
-        });
-      } else {
-        const supabase = createClient();
-        const { error } = await supabase
-          .from("transactions")
-          .delete()
-          .eq("id", transaction.id);
+      const res = await fetch(`/api/transactions/${transaction.id}`, { method: "DELETE" });
+      const result = await res.json();
+      if (!result.success) throw new Error(result.error);
 
-        if (error) throw error;
+      toast({
+        title: "Success",
+        description: "Transaction deleted successfully",
+      });
 
-        toast({
-          title: "Success",
-          description: "Transaction deleted successfully",
-        });
-      }
-
-      setAllTransactions(prev => prev.filter(t => t.id !== transaction.id));
+      setAllTransactions((prev) => prev.filter((t) => t.id !== transaction.id));
     } catch (err: unknown) {
       toast({
         title: "Error",
@@ -96,9 +68,8 @@ export default function TransactionsPage() {
   };
 
   // Filter and paginate
-  const filteredTransactions = filterType === "ALL" 
-    ? allTransactions 
-    : allTransactions.filter(t => t.type === filterType);
+  const filteredTransactions =
+    filterType === "ALL" ? allTransactions : allTransactions.filter((t) => t.type === filterType);
   const totalCount = filteredTransactions.length;
   const totalPages = Math.ceil(totalCount / PAGE_SIZE);
   const transactions = filteredTransactions.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -108,9 +79,7 @@ export default function TransactionsPage() {
       {/* Tabs */}
       <div className="flex items-center justify-between mb-6">
         <Tabs
-          tabs={[
-            { id: "transactions", label: "Transactions" },
-          ]}
+          tabs={[{ id: "transactions", label: "Transactions" }]}
           activeTab={activeTab}
           onChange={(id) => {
             setActiveTab(id);
@@ -193,16 +162,12 @@ export default function TransactionsPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <Badge variant={txn.type === "SELL" ? "green" : "blue"}>
-                        {txn.type}
-                      </Badge>
+                      <Badge variant={txn.type === "SELL" ? "green" : "blue"}>{txn.type}</Badge>
                     </td>
                     <td className="px-6 py-4 text-center text-sm text-white font-medium">
                       {txn.quantity}
                     </td>
-                    <td className="px-6 py-4 text-center text-sm text-slate-300">
-                      {txn.currency}
-                    </td>
+                    <td className="px-6 py-4 text-center text-sm text-slate-300">{txn.currency}</td>
                     <td className="px-6 py-4 text-right text-sm font-semibold text-white">
                       {formatPriceInIQDSync(txn.total, txn.currency)}
                     </td>
@@ -224,13 +189,17 @@ export default function TransactionsPage() {
       </div>
 
       <Pagination currentPage={page} totalPages={totalPages} onPageChange={setPage} />
-      
+
       {/* Delete Confirmation Dialog */}
       <ConfirmationDialog
         open={deleteConfirm.show}
         onOpenChange={(open) => setDeleteConfirm({ show: open, transaction: null })}
         title="Delete Transaction"
-        description={deleteConfirm.transaction ? `Are you sure you want to delete this ${deleteConfirm.transaction.type} transaction for ${deleteConfirm.transaction.product?.name}? This action cannot be undone.` : ""}
+        description={
+          deleteConfirm.transaction
+            ? `Are you sure you want to delete this ${deleteConfirm.transaction.type} transaction for ${deleteConfirm.transaction.product?.name}? This action cannot be undone.`
+            : ""
+        }
         confirmText="Delete"
         cancelText="Cancel"
         variant="destructive"
@@ -239,4 +208,3 @@ export default function TransactionsPage() {
     </div>
   );
 }
-

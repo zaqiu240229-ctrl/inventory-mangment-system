@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isDemoMode, demoDataStore } from "@/lib/demo-data";
+import { createClient } from "@/lib/neon";
 
 interface ProfitReport {
   period: string;
@@ -30,8 +31,8 @@ interface ReportsData {
 // GET reports data
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const startDate = searchParams.get('startDate');
-  const endDate = searchParams.get('endDate');
+  const startDate = searchParams.get("startDate");
+  const endDate = searchParams.get("endDate");
 
   // Demo mode - return demo data
   if (isDemoMode) {
@@ -50,19 +51,19 @@ export async function GET(request: NextRequest) {
         const txnYear = txnDate.getFullYear();
         const txnMonth = txnDate.getMonth();
         const txnDay = txnDate.getDate();
-        
+
         const startYear = start.getFullYear();
         const startMonth = start.getMonth();
         const startDay = start.getDate();
-        
+
         const endYear = end.getFullYear();
         const endMonth = end.getMonth();
         const endDay = end.getDate();
-        
+
         const txnDateOnly = new Date(txnYear, txnMonth, txnDay);
         const startDateOnly = new Date(startYear, startMonth, startDay);
         const endDateOnly = new Date(endYear, endMonth, endDay);
-        
+
         return txnDateOnly >= startDateOnly && txnDateOnly <= endDateOnly;
       });
     }
@@ -88,11 +89,63 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // For production mode, you would implement database queries here
-  return NextResponse.json({
-    success: false,
-    error: "Reports not implemented for production mode",
-  }, { status: 501 });
+  // For production mode, query from Neon database
+  try {
+    const client = createClient();
+
+    // Fetch all transactions
+    const transactionsResult = await client`
+      SELECT 
+        id,
+        product_id,
+        type,
+        quantity,
+        created_at
+      FROM transactions
+      ORDER BY created_at DESC
+    `;
+
+    // Fetch all products
+    const productsResult = await client`
+      SELECT 
+        id,
+        name,
+        buy_price,
+        sell_price
+      FROM products
+      WHERE deleted_at IS NULL
+    `;
+
+    const transactions = transactionsResult;
+    const products = productsResult;
+
+    // Calculate reports using existing helper functions
+    const daily = calculateDailyReports(transactions, products);
+    const weekly = calculateWeeklyReports(transactions, products);
+    const monthly = calculateMonthlyReports(transactions, products);
+    const yearly = calculateYearlyReports(transactions, products);
+    const summary = calculateSummary(transactions, products);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        summary,
+        daily,
+        weekly,
+        monthly,
+        yearly,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching reports from database:", error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Failed to generate reports",
+      },
+      { status: 500 }
+    );
+  }
 }
 
 function calculateDailyReports(transactions: any[], products: any[]): ProfitReport[] {
@@ -104,7 +157,7 @@ function calculateDailyReports(transactions: any[], products: any[]): ProfitRepo
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
     const day = date.getDate();
-    const dayKey = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+    const dayKey = `${year}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
 
     if (!dailyData[dayKey]) {
       dailyData[dayKey] = [];
@@ -126,13 +179,13 @@ function calculateWeeklyReports(transactions: any[], products: any[]): ProfitRep
     const date = new Date(txn.created_at);
     const year = date.getFullYear();
     const month = date.getMonth();
-    
+
     // Calculate which week of the month (1-5)
     const firstDayOfMonth = new Date(year, month, 1);
     const dayOfMonth = date.getDate();
     const weekOfMonth = Math.ceil((dayOfMonth + firstDayOfMonth.getDay() - 1) / 7);
-    
-    const monthName = date.toLocaleString('en-US', { month: 'long' });
+
+    const monthName = date.toLocaleString("en-US", { month: "long" });
     const weekKey = `${monthName} ${year} - Week ${weekOfMonth}`;
 
     if (!weeklyData[weekKey]) {
@@ -144,8 +197,8 @@ function calculateWeeklyReports(transactions: any[], products: any[]): ProfitRep
   return Object.entries(weeklyData)
     .sort(([a], [b]) => {
       // Sort by date, most recent first
-      const dateA = new Date(a.split(' - ')[0]);
-      const dateB = new Date(b.split(' - ')[0]);
+      const dateA = new Date(a.split(" - ")[0]);
+      const dateB = new Date(b.split(" - ")[0]);
       return dateB.getTime() - dateA.getTime();
     })
     .slice(0, 12) // Last 12 weeks
@@ -160,7 +213,7 @@ function calculateMonthlyReports(transactions: any[], products: any[]): ProfitRe
     const date = new Date(txn.created_at);
     const year = date.getFullYear();
     const month = date.getMonth() + 1;
-    const monthKey = `${year}-${month.toString().padStart(2, '0')}`;
+    const monthKey = `${year}-${month.toString().padStart(2, "0")}`;
 
     if (!monthlyData[monthKey]) {
       monthlyData[monthKey] = [];
@@ -172,8 +225,10 @@ function calculateMonthlyReports(transactions: any[], products: any[]): ProfitRe
     .sort(([a], [b]) => b.localeCompare(a))
     .slice(0, 12) // Last 12 months
     .map(([period, txns]) => {
-      const [year, month] = period.split('-');
-      const monthName = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString('en-US', { month: 'long' });
+      const [year, month] = period.split("-");
+      const monthName = new Date(parseInt(year), parseInt(month) - 1, 1).toLocaleString("en-US", {
+        month: "long",
+      });
       return calculatePeriodReport(`${monthName} ${year}`, txns, products);
     });
 }
@@ -228,8 +283,10 @@ function calculatePeriodReport(period: string, transactions: any[], products: an
   const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
 
   // Find top product
-  const topProduct = Object.entries(productProfits)
-    .sort(([, a], [, b]) => b - a)[0] || ["No sales", 0];
+  const topProduct = Object.entries(productProfits).sort(([, a], [, b]) => b - a)[0] || [
+    "No sales",
+    0,
+  ];
 
   return {
     period,

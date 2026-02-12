@@ -1,8 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { demoDataStore, isDemoMode } from "@/lib/demo-data";
 import type { Product, Category } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { RotateCcw, Trash2 } from "lucide-react";
@@ -10,45 +8,76 @@ import { useToast } from "@/hooks/use-toast";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 const DEMO_DELETED_PRODUCTS: Product[] = [
-  { id: "d1", name: "Old iPhone 6 Screen", model: "iPhone 6", category_id: "1", buy_price: 500, sell_price: 800, currency: "IQD", created_at: "", updated_at: "", deleted_at: "2024-04-10T12:00:00Z", category: { id: "1", name: "Screens", description: null, is_active: true, created_at: "", updated_at: "" } as Category },
-  { id: "d2", name: "Galaxy S5 Battery", model: "Galaxy S5", category_id: "2", buy_price: 300, sell_price: 500, currency: "IQD", created_at: "", updated_at: "", deleted_at: "2024-04-08T09:00:00Z", category: { id: "2", name: "Batteries", description: null, is_active: true, created_at: "", updated_at: "" } as Category },
+  {
+    id: "d1",
+    name: "Old iPhone 6 Screen",
+    model: "iPhone 6",
+    category_id: "1",
+    buy_price: 500,
+    sell_price: 800,
+    currency: "IQD",
+    created_at: "",
+    updated_at: "",
+    deleted_at: "2024-04-10T12:00:00Z",
+    category: {
+      id: "1",
+      name: "Screens",
+      description: null,
+      is_active: true,
+      created_at: "",
+      updated_at: "",
+    } as Category,
+  },
+  {
+    id: "d2",
+    name: "Galaxy S5 Battery",
+    model: "Galaxy S5",
+    category_id: "2",
+    buy_price: 300,
+    sell_price: 500,
+    currency: "IQD",
+    created_at: "",
+    updated_at: "",
+    deleted_at: "2024-04-08T09:00:00Z",
+    category: {
+      id: "2",
+      name: "Batteries",
+      description: null,
+      is_active: true,
+      created_at: "",
+      updated_at: "",
+    } as Category,
+  },
 ];
 
 export default function ProductRecoveryPage() {
   const { toast } = useToast();
   const [deletedProducts, setDeletedProducts] = useState<Product[]>([]);
-  const [recoverConfirm, setRecoverConfirm] = useState<{ show: boolean; product: Product | null }>({ show: false, product: null });
-  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; product: Product | null }>({ show: false, product: null });
+  const [recoverConfirm, setRecoverConfirm] = useState<{ show: boolean; product: Product | null }>({
+    show: false,
+    product: null,
+  });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; product: Product | null }>({
+    show: false,
+    product: null,
+  });
   const [loading, setLoading] = useState(true);
 
   const fetchDeleted = useCallback(async () => {
-    if (isDemoMode) {
-      setDeletedProducts(demoDataStore.getDeletedProducts());
-      setLoading(false);
-      return;
+    try {
+      const res = await fetch("/api/products?deleted=true");
+      const result = await res.json();
+      if (result.success) {
+        setDeletedProducts(result.data);
+      }
+    } catch (err) {
+      console.error("Error fetching deleted products:", err);
     }
-
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("products")
-      .select("*, category:categories(*)")
-      .not("deleted_at", "is", null)
-      .order("deleted_at", { ascending: false });
-
-    if (data) setDeletedProducts(data);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     fetchDeleted();
-    
-    // Subscribe to demo data changes for real-time updates
-    if (isDemoMode) {
-      const unsubscribe = demoDataStore.subscribe(() => {
-        setDeletedProducts(demoDataStore.getDeletedProducts());
-      });
-      return unsubscribe;
-    }
   }, [fetchDeleted]);
 
   const handleRecover = async (product: Product) => {
@@ -59,47 +88,27 @@ export default function ProductRecoveryPage() {
     if (!recoverConfirm.product) return;
 
     const product = recoverConfirm.product;
-    
-    // Demo mode - use centralized data store
-    if (isDemoMode) {
-      const success = demoDataStore.recoverProduct(product.id);
-      if (success) {
+
+    try {
+      const res = await fetch(`/api/products/${product.id}/recover`, {
+        method: "POST",
+      });
+      const result = await res.json();
+
+      if (result.success) {
         toast({
           title: "Product recovered",
           description: `${product.name} has been restored to inventory`,
         });
-        // Refresh the deleted products list
-        setDeletedProducts(demoDataStore.getDeletedProducts());
+        fetchDeleted();
       } else {
         toast({
           title: "Error",
-          description: "Failed to recover product",
+          description: result.error || "Failed to recover product",
           variant: "destructive",
         });
       }
-      setRecoverConfirm({ show: false, product: null });
-      return;
-    }
-
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("products")
-      .update({ deleted_at: null })
-      .eq("id", product.id);
-
-    if (!error) {
-      await supabase.from("activity_logs").insert({
-        action: "RECOVER",
-        entity_type: "product",
-        entity_id: product.id,
-        details: { product_name: product.name },
-      });
-      toast({
-        title: "Product recovered",
-        description: `${product.name} has been restored to inventory`,
-      });
-      fetchDeleted();
-    } else {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to recover product",
@@ -117,47 +126,27 @@ export default function ProductRecoveryPage() {
     if (!deleteConfirm.product) return;
 
     const product = deleteConfirm.product;
-    
-    // Demo mode - use centralized data store
-    if (isDemoMode) {
-      const success = demoDataStore.permanentlyDeleteProduct(product.id);
-      if (success) {
+
+    try {
+      const res = await fetch(`/api/products/${product.id}?permanent=true`, {
+        method: "DELETE",
+      });
+      const result = await res.json();
+
+      if (result.success) {
         toast({
           title: "Product permanently deleted",
           description: `${product.name} has been permanently removed from the system`,
         });
-        // Refresh the deleted products list
-        setDeletedProducts(demoDataStore.getDeletedProducts());
+        fetchDeleted();
       } else {
         toast({
           title: "Error",
-          description: "Failed to permanently delete product",
+          description: result.error || "Failed to permanently delete product",
           variant: "destructive",
         });
       }
-      setDeleteConfirm({ show: false, product: null });
-      return;
-    }
-
-    const supabase = createClient();
-    const { error } = await supabase
-      .from("products")
-      .delete()
-      .eq("id", product.id);
-
-    if (!error) {
-      await supabase.from("activity_logs").insert({
-        action: "DELETE_PERMANENT",
-        entity_type: "product",
-        entity_id: product.id,
-        details: { product_name: product.name },
-      });
-      toast({
-        title: "Product permanently deleted",
-        description: `${product.name} has been permanently removed from the system`,
-      });
-      fetchDeleted();
-    } else {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to permanently delete product",
@@ -171,8 +160,20 @@ export default function ProductRecoveryPage() {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <svg className="animate-spin w-8 h-8 text-blue-500" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+            fill="none"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
         </svg>
       </div>
     );
@@ -266,7 +267,11 @@ export default function ProductRecoveryPage() {
         open={recoverConfirm.show}
         onOpenChange={(open: boolean) => setRecoverConfirm({ show: open, product: null })}
         title="Recover Product"
-        description={recoverConfirm.product ? `Are you sure you want to recover "${recoverConfirm.product.name}"? This will restore the product to the main inventory.` : ""}
+        description={
+          recoverConfirm.product
+            ? `Are you sure you want to recover "${recoverConfirm.product.name}"? This will restore the product to the main inventory.`
+            : ""
+        }
         confirmText="Recover"
         cancelText="Cancel"
         onConfirm={confirmRecover}
@@ -277,7 +282,11 @@ export default function ProductRecoveryPage() {
         open={deleteConfirm.show}
         onOpenChange={(open: boolean) => setDeleteConfirm({ show: open, product: null })}
         title="Permanently Delete Product"
-        description={deleteConfirm.product ? `Are you sure you want to permanently delete "${deleteConfirm.product.name}"? This action cannot be undone and the product will be completely removed from the system.` : ""}
+        description={
+          deleteConfirm.product
+            ? `Are you sure you want to permanently delete "${deleteConfirm.product.name}"? This action cannot be undone and the product will be completely removed from the system.`
+            : ""
+        }
         confirmText="Delete Permanently"
         cancelText="Cancel"
         onConfirm={confirmDelete}
@@ -286,4 +295,3 @@ export default function ProductRecoveryPage() {
     </div>
   );
 }
-

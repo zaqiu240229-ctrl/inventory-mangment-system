@@ -2,8 +2,6 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { demoDataStore, isDemoMode } from "@/lib/demo-data";
 import type { Category, Product } from "@/types";
 import Modal from "@/components/ui/Modal";
 import SearchBar from "@/components/ui/SearchBar";
@@ -25,37 +23,24 @@ export default function CategoriesPage() {
   const nextIdRef = useRef(8);
 
   const fetchCategories = useCallback(async () => {
-    if (isDemoMode) {
-      setCategories(demoDataStore.getCategories());
-      setLoading(false);
-      return;
+    try {
+      const res = await fetch("/api/categories");
+      const result = await res.json();
+      if (result.success) setCategories(result.data);
+    } catch (err) {
+      console.error("Error fetching categories:", err);
     }
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("categories")
-      .select("*")
-      .order("created_at", { ascending: true });
-
-    if (data) setCategories(data);
-    if (error) console.error(error);
     setLoading(false);
   }, []);
 
   const fetchCategoryProducts = useCallback(async (categoryId: string) => {
-    if (isDemoMode) {
-      setCategoryProducts(demoDataStore.getProductsByCategory(categoryId));
-      return;
+    try {
+      const res = await fetch(`/api/products?category_id=${categoryId}`);
+      const result = await res.json();
+      if (result.success) setCategoryProducts(result.data);
+    } catch (err) {
+      console.error("Error fetching category products:", err);
     }
-    
-    const supabase = createClient();
-    const { data } = await supabase
-      .from("products")
-      .select("*")
-      .eq("category_id", categoryId)
-      .is("deleted_at", null)
-      .order("name");
-    
-    if (data) setCategoryProducts(data);
   }, []);
 
   const viewCategoryProducts = (category: Category) => {
@@ -78,31 +63,20 @@ export default function CategoriesPage() {
   };
 
   // Filter categories based on search
-  const filteredCategories = categories.filter(category =>
-    !search || category.name.toLowerCase().includes(search.toLowerCase())
+  const filteredCategories = categories.filter(
+    (category) => !search || category.name.toLowerCase().includes(search.toLowerCase())
   );
 
   // Filter products based on search
-  const filteredProducts = categoryProducts.filter(product =>
-    !productSearch || 
-    product.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    product.model.toLowerCase().includes(productSearch.toLowerCase())
+  const filteredProducts = categoryProducts.filter(
+    (product) =>
+      !productSearch ||
+      product.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+      product.model.toLowerCase().includes(productSearch.toLowerCase())
   );
 
   useEffect(() => {
     fetchCategories();
-    
-    // Subscribe to demo data changes
-    if (isDemoMode) {
-      const unsubscribe = demoDataStore.subscribe(() => {
-        setCategories(demoDataStore.getCategories());
-        // If viewing category products, refresh them too
-        if (selectedCategory) {
-          setCategoryProducts(demoDataStore.getProductsByCategory(selectedCategory.id));
-        }
-      });
-      return unsubscribe;
-    }
   }, [fetchCategories, selectedCategory]);
 
   const openCreate = () => {
@@ -128,44 +102,23 @@ export default function CategoriesPage() {
     setSaving(true);
     setError("");
 
-    // Demo mode - update local state
-    // Demo mode - use centralized data store
-    if (isDemoMode) {
-      try {
-        if (editingCategory) {
-          demoDataStore.updateCategory(editingCategory.id, {
-            name: formData.name,
-            description: formData.description || null,
-          });
-        } else {
-          demoDataStore.addCategory({
-            name: formData.name,
-            description: formData.description || null,
-            is_active: true,
-          });
-        }
-        setShowModal(false);
-      } catch (err) {
-        setError("Failed to save category");
-      }
-      setSaving(false);
-      return;
-    }
-
-    // Real Supabase mode
-    const supabase = createClient();
     try {
       if (editingCategory) {
-        const { error } = await supabase
-          .from("categories")
-          .update({ name: formData.name, description: formData.description || null })
-          .eq("id", editingCategory.id);
-        if (error) throw error;
+        const res = await fetch(`/api/categories/${editingCategory.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: formData.name, description: formData.description || null }),
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error);
       } else {
-        const { error } = await supabase
-          .from("categories")
-          .insert({ name: formData.name, description: formData.description || null });
-        if (error) throw error;
+        const res = await fetch("/api/categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: formData.name, description: formData.description || null }),
+        });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error);
       }
       setShowModal(false);
       fetchCategories();
@@ -180,8 +133,20 @@ export default function CategoriesPage() {
     return (
       <div className="flex items-center justify-center h-[60vh]">
         <svg className="animate-spin w-8 h-8 text-blue-500" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+            fill="none"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+          />
         </svg>
       </div>
     );
@@ -204,7 +169,8 @@ export default function CategoriesPage() {
               <div>
                 <h2 className="text-lg font-semibold text-white">{selectedCategory.name}</h2>
                 <p className="text-sm text-slate-400">
-                  {filteredProducts.length} of {categoryProducts.length} product{categoryProducts.length !== 1 ? 's' : ''}
+                  {filteredProducts.length} of {categoryProducts.length} product
+                  {categoryProducts.length !== 1 ? "s" : ""}
                 </p>
               </div>
             </div>
@@ -223,10 +189,9 @@ export default function CategoriesPage() {
               <div className="text-center py-12">
                 <Package className="w-16 h-16 text-slate-600 mx-auto mb-4" />
                 <p className="text-slate-400">
-                  {categoryProducts.length === 0 
+                  {categoryProducts.length === 0
                     ? "No products found in this category"
-                    : "No products match your search"
-                  }
+                    : "No products match your search"}
                 </p>
               </div>
             ) : (
@@ -244,7 +209,7 @@ export default function CategoriesPage() {
                         Buy Price
                       </th>
                       <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
-                        Sell Price  
+                        Sell Price
                       </th>
                     </tr>
                   </thead>
@@ -264,7 +229,7 @@ export default function CategoriesPage() {
                         <td className="px-6 py-4 text-sm text-slate-300">{product.model}</td>
                         <td className="px-6 py-4 text-sm font-medium text-white">
                           {formatPriceInIQDSync(product.buy_price, product.currency)}
-                        </td>  
+                        </td>
                         <td className="px-6 py-4 text-sm font-medium text-white">
                           {formatPriceInIQDSync(product.sell_price, product.currency)}
                         </td>
@@ -302,7 +267,9 @@ export default function CategoriesPage() {
             {filteredCategories.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-slate-400">
-                  {categories.length === 0 ? "No categories found. Create one to get started." : "No categories match your search."}
+                  {categories.length === 0
+                    ? "No categories found. Create one to get started."
+                    : "No categories match your search."}
                 </p>
               </div>
             ) : (
@@ -314,7 +281,7 @@ export default function CategoriesPage() {
                       !cat.is_active ? "opacity-50" : ""
                     }`}
                   >
-                    <div 
+                    <div
                       className="flex-1 cursor-pointer"
                       onClick={() => viewCategoryProducts(cat)}
                     >
@@ -375,10 +342,7 @@ export default function CategoriesPage() {
             />
           </div>
           <div className="flex gap-3 pt-2">
-            <button
-              onClick={() => setShowModal(false)}
-              className="btn-secondary flex-1"
-            >
+            <button onClick={() => setShowModal(false)} className="btn-secondary flex-1">
               Cancel
             </button>
             <button

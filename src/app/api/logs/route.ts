@@ -1,33 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/neon";
 
 // GET activity logs with pagination
 export async function GET(request: NextRequest) {
-  const supabase = await createClient();
-  const { searchParams } = new URL(request.url);
+  try {
+    const sql = createClient();
+    const { searchParams } = new URL(request.url);
 
-  const page = parseInt(searchParams.get("page") || "1");
-  const pageSize = parseInt(searchParams.get("pageSize") || "20");
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = parseInt(searchParams.get("pageSize") || "20");
+    const offset = (page - 1) * pageSize;
 
-  const from = (page - 1) * pageSize;
-  const to = from + pageSize - 1;
+    const countResult = await sql`SELECT COUNT(*) as count FROM activity_logs`;
+    const total = parseInt(countResult[0].count);
 
-  const { data, count, error } = await supabase
-    .from("activity_logs")
-    .select("*", { count: "exact" })
-    .order("created_at", { ascending: false })
-    .range(from, to);
+    const data = await sql`
+      SELECT * FROM activity_logs
+      ORDER BY created_at DESC
+      LIMIT ${pageSize} OFFSET ${offset}
+    `;
 
-  if (error) {
+    return NextResponse.json({
+      success: true,
+      data,
+      total,
+      page,
+      pageSize,
+      totalPages: Math.ceil(total / pageSize),
+    });
+  } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
-
-  return NextResponse.json({
-    success: true,
-    data,
-    total: count || 0,
-    page,
-    pageSize,
-    totalPages: Math.ceil((count || 0) / pageSize),
-  });
 }
