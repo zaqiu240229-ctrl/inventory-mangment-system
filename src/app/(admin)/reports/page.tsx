@@ -2,21 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
-import {
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  ArrowLeft,
-  Calendar,
-  Package,
-  BarChart3,
-  Users,
-  Settings,
-  Boxes,
-  Bell,
-  ChevronRight,
-  X,
-} from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, ArrowLeft, Calendar } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
 
 interface ProfitReport {
@@ -49,9 +35,6 @@ export default function ReportsPage() {
   const [reports, setReports] = useState<ReportsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
-  const [selectedPeriodType, setSelectedPeriodType] = useState<
-    "daily" | "weekly" | "monthly" | "yearly" | null
-  >(null);
 
   useEffect(() => {
     fetchReports();
@@ -146,7 +129,6 @@ export default function ReportsPage() {
         : selectedDateObj?.toLocaleDateString("en-US", { weekday: "long" }) || "Today",
       profit: findDailyProfit(),
       periodType: "daily" as const,
-      isClicked: selectedPeriodType === "daily",
     },
     {
       label: isTodaySelected
@@ -154,7 +136,6 @@ export default function ReportsPage() {
         : `Week of ${selectedDateObj?.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
       profit: findWeeklyProfit(),
       periodType: "weekly" as const,
-      isClicked: selectedPeriodType === "weekly",
     },
     {
       label: isTodaySelected
@@ -162,13 +143,11 @@ export default function ReportsPage() {
         : selectedDateObj?.toLocaleDateString("en-US", { month: "long", year: "numeric" }),
       profit: findMonthlyProfit(),
       periodType: "monthly" as const,
-      isClicked: selectedPeriodType === "monthly",
     },
     {
       label: isTodaySelected ? "This Year" : selectedDateObj?.getFullYear().toString(),
       profit: findYearlyProfit(),
       periodType: "yearly" as const,
-      isClicked: selectedPeriodType === "yearly",
     },
   ];
 
@@ -268,8 +247,7 @@ export default function ReportsPage() {
             return (
               <div
                 key={index}
-                className={`flex items-center justify-between p-4 rounded-lg transition-colors cursor-pointer ${item.isClicked ? "bg-blue-600/20 border border-blue-500/50" : "bg-slate-800/50 hover:bg-slate-700/50"}`}
-                onClick={() => setSelectedPeriodType(item.periodType)}
+                className="flex items-center justify-between p-4 rounded-lg bg-slate-800/50"
               >
                 <span className="text-white font-medium text-lg">{item.label}</span>
                 <div className="flex items-center gap-2">
@@ -284,132 +262,12 @@ export default function ReportsPage() {
                     {item.profit >= 0 ? "+" : "-"}
                     {formatCurrency(Math.abs(item.profit))}
                   </span>
-                  {item.isClicked && <span className="text-blue-400 text-sm ml-2">← Clicked</span>}
                 </div>
               </div>
             );
           })}
         </div>
       </div>
-
-      {/* Detailed Period Breakdown */}
-      {selectedPeriodType && reports && (
-        <div className="card p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-semibold text-white flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-blue-400" />
-              {selectedPeriodType === "daily"
-                ? "Today's"
-                : selectedPeriodType === "weekly"
-                  ? "This Week's"
-                  : selectedPeriodType === "monthly"
-                    ? "This Month's"
-                    : "This Year's"}{" "}
-              Profit - {selectedPeriodType.charAt(0).toUpperCase() + selectedPeriodType.slice(1)}{" "}
-              View
-            </h3>
-            <button
-              onClick={() => setSelectedPeriodType(null)}
-              className="flex items-center gap-2 px-3 py-1 bg-slate-700 hover:bg-slate-600 rounded-lg transition-colors"
-            >
-              <X className="w-4 h-4" />
-              Close
-            </button>
-          </div>
-
-          <div className="space-y-4">
-            {/* Show selected period profit data in simple format */}
-            {(() => {
-              const selectedReport =
-                selectedPeriodType === "daily"
-                  ? reports.daily[0]
-                  : selectedPeriodType === "weekly"
-                    ? reports.weekly[0]
-                    : selectedPeriodType === "monthly"
-                      ? reports.monthly[0]
-                      : reports.yearly[0];
-
-              if (!selectedReport) return null;
-
-              return (
-                <div className="text-center py-8">
-                  <div className="mb-6">
-                    <h4 className="text-2xl font-bold text-white mb-2">
-                      {selectedPeriodType === "daily"
-                        ? "Today's"
-                        : selectedPeriodType === "weekly"
-                          ? "This Week's"
-                          : selectedPeriodType === "monthly"
-                            ? "This Month's"
-                            : "This Year's"}{" "}
-                      Profit Report
-                    </h4>
-                    <p className="text-slate-400">
-                      {selectedPeriodType === "daily"
-                        ? new Date().toLocaleDateString("en-US", {
-                            weekday: "long",
-                            month: "long",
-                            day: "numeric",
-                            year: "numeric",
-                          })
-                        : selectedReport.period}
-                    </p>
-                  </div>
-
-                  <div className="bg-slate-800/50 rounded-lg p-8 max-w-md mx-auto">
-                    <div className="text-6xl font-bold mb-4">
-                      {selectedReport.profit >= 0 ? (
-                        <span className="text-green-400">
-                          +{formatCurrency(Math.abs(selectedReport.profit))}
-                        </span>
-                      ) : (
-                        <span className="text-red-400">
-                          -{formatCurrency(Math.abs(selectedReport.profit))}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="text-lg text-slate-300 mb-6">
-                      {selectedReport.profit >= 0
-                        ? "You're making money! 🎉"
-                        : "You're losing money 😞"}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="bg-slate-900/50 rounded p-3">
-                        <div className="text-slate-400">Money In</div>
-                        <div className="text-green-400 font-semibold">
-                          {formatCurrency(selectedReport.totalRevenue)}
-                        </div>
-                      </div>
-                      <div className="bg-slate-900/50 rounded p-3">
-                        <div className="text-slate-400">Money Out</div>
-                        <div className="text-red-400 font-semibold">
-                          {formatCurrency(selectedReport.totalCost)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-6 pt-4 border-t border-slate-700">
-                      <div className="text-sm text-slate-400">
-                        {selectedReport.transactionCount} transactions{" "}
-                        {selectedPeriodType === "daily"
-                          ? "today"
-                          : `this ${selectedPeriodType.slice(0, -2)}`}
-                      </div>
-                      {selectedReport.topProduct.name !== "No sales" && (
-                        <div className="text-sm text-slate-400 mt-1">
-                          Best seller: {selectedReport.topProduct.name}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-          </div>
-        </div>
-      )}
 
       {/* Date Information Panel */}
       <div className="card p-6">

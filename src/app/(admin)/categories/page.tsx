@@ -5,10 +5,13 @@ import Link from "next/link";
 import type { Category, Product } from "@/types";
 import Modal from "@/components/ui/Modal";
 import SearchBar from "@/components/ui/SearchBar";
-import { Plus, ChevronRight, Package, ArrowLeft } from "lucide-react";
+import { Plus, ChevronRight, Package, ArrowLeft, Trash2 } from "lucide-react";
 import { formatCurrency } from "@/lib/utils";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { useToast } from "@/hooks/use-toast";
 
 export default function CategoriesPage() {
+  const { toast } = useToast();
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const [categoryProducts, setCategoryProducts] = useState<Product[]>([]);
@@ -20,6 +23,10 @@ export default function CategoriesPage() {
   const [formData, setFormData] = useState({ name: "", description: "" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [deleteConfirm, setDeleteConfirm] = useState<{ show: boolean; category: Category | null }>({
+    show: false,
+    category: null,
+  });
   const nextIdRef = useRef(8);
 
   const fetchCategories = useCallback(async () => {
@@ -126,6 +133,39 @@ export default function CategoriesPage() {
       setError(err instanceof Error ? err.message : "Failed to save category");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteConfirm.category) return;
+
+    try {
+      const res = await fetch(`/api/categories/${deleteConfirm.category.id}`, {
+        method: "DELETE",
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        toast({
+          title: "Category deleted",
+          description: "The category has been deleted successfully.",
+        });
+        fetchCategories();
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Failed to delete category",
+          variant: "destructive",
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "Failed to delete category",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteConfirm({ show: false, category: null });
     }
   };
 
@@ -297,6 +337,16 @@ export default function CategoriesPage() {
                       >
                         Edit
                       </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteConfirm({ show: true, category: cat });
+                        }}
+                        className="p-1.5 text-slate-400 hover:text-red-400 hover:bg-[#1e293b] rounded-md transition-colors"
+                        title="Delete category"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                       <ChevronRight className="w-4 h-4 text-slate-600 ml-2" />
                     </div>
                   </div>
@@ -355,6 +405,18 @@ export default function CategoriesPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        open={deleteConfirm.show}
+        onOpenChange={(open) => !open && setDeleteConfirm({ show: false, category: null })}
+        onConfirm={handleDelete}
+        title="Delete Category"
+        description={`Are you sure you want to delete "${deleteConfirm.category?.name}"? This will mark the category as inactive.`}
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+      />
     </div>
   );
 }
