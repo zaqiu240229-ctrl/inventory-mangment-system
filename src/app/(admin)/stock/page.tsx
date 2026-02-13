@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import SearchBar from "@/components/ui/SearchBar";
-import { formatPriceInIQDSync } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 interface Product {
   id: string;
@@ -11,7 +11,6 @@ interface Product {
   model: string;
   buy_price: number;
   sell_price: number;
-  currency: "IQD" | "USD";
   stock?: {
     quantity: number;
   };
@@ -157,7 +156,6 @@ export default function StockManagement() {
           total:
             quantityNum *
             (modalType === "add" ? selectedProduct.buy_price : selectedProduct.sell_price),
-          currency: selectedProduct.currency,
         }),
       });
       const stockResult = await stockRes.json();
@@ -267,10 +265,10 @@ export default function StockManagement() {
                         </span>
                       </td>
                       <td className="py-4 px-4 text-slate-300">
-                        {formatPriceInIQDSync(product.buy_price, product.currency)}
+                        {formatCurrency(product.buy_price)}
                       </td>
                       <td className="py-4 px-4 text-slate-300">
-                        {formatPriceInIQDSync(product.sell_price, product.currency)}
+                        {formatCurrency(product.sell_price)}
                       </td>
                       <td className="py-4 px-4">
                         <div className="flex gap-2">

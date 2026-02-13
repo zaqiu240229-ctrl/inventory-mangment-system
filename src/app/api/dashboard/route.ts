@@ -17,14 +17,8 @@ export async function GET(_request: NextRequest) {
     const buyTxns = transactions.filter((t) => t.type === "BUY");
     const sellTxns = transactions.filter((t) => t.type === "SELL");
 
-    const totalBuyValue = buyTxns.reduce((sum, t) => {
-      const totalIQD = t.currency === "USD" ? Number(t.total) * 1460 : Number(t.total);
-      return sum + totalIQD;
-    }, 0);
-    const totalSellValue = sellTxns.reduce((sum, t) => {
-      const totalIQD = t.currency === "USD" ? Number(t.total) * 1460 : Number(t.total);
-      return sum + totalIQD;
-    }, 0);
+    const totalBuyValue = buyTxns.reduce((sum, t) => sum + Number(t.total), 0);
+    const totalSellValue = sellTxns.reduce((sum, t) => sum + Number(t.total), 0);
 
     // Recent transactions (last 5)
     const recentTransactions = transactions

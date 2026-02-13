@@ -1,11 +1,10 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { formatCurrency, formatNumber, formatPriceInIQDSync } from "@/lib/utils";
+import { formatCurrency, formatNumber } from "@/lib/utils";
 import {
   Package,
   Boxes,
-  DollarSign,
   TrendingUp,
   ArrowRight,
   ShoppingCart,
@@ -15,7 +14,6 @@ import {
 } from "lucide-react";
 import type { DashboardStats } from "@/types";
 import StatCard from "@/components/ui/StatCard";
-import { CurrencyConverter } from "@/components/CurrencyConverter";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({
@@ -96,23 +94,16 @@ export default function DashboardPage() {
         />
         <StatCard
           label="Total Buy Value"
-          value={formatPriceInIQDSync(stats.totalBuyValue, "IQD")}
+          value={formatCurrency(stats.totalBuyValue)}
           icon={<ShoppingCart className="w-5 h-5" />}
           color="yellow"
         />
         <StatCard
           label="Total Sell Value"
-          value={formatPriceInIQDSync(stats.totalSellValue, "IQD")}
+          value={formatCurrency(stats.totalSellValue)}
           icon={<Boxes className="w-5 h-5" />}
           color="green"
         />
-      </div>
-
-      {/* Currency Converter */}
-      <div className="grid grid-cols-1 gap-6">
-        <div className="card p-5">
-          <CurrencyConverter />
-        </div>
       </div>
     </div>
   );

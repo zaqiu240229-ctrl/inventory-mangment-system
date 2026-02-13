@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import type { Product, Category } from "@/types";
-import { formatCurrency, formatPriceInIQDSync } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import Modal from "@/components/ui/Modal";
 import Badge from "@/components/ui/Badge";
 import SearchBar from "@/components/ui/SearchBar";
@@ -10,7 +10,7 @@ import Pagination from "@/components/ui/Pagination";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useToast } from "@/hooks/use-toast";
 import Link from "next/link";
-import { Plus, Pencil, Trash2, RotateCcw, DollarSign, Minus } from "lucide-react";
+import { Plus, Pencil, Trash2, RotateCcw, Minus } from "lucide-react";
 
 const PAGE_SIZE = 6;
 
@@ -33,7 +33,6 @@ export default function ProductsPage() {
       category_id: string;
       buy_price: number;
       sell_price: number;
-      currency: "IQD" | "USD";
       initial_quantity: number;
     }>
   >([]);
@@ -53,7 +52,6 @@ export default function ProductsPage() {
     category_id: "",
     buy_price: 0,
     sell_price: 0,
-    currency: "IQD" as "IQD" | "USD",
     initial_quantity: 0,
   });
 
@@ -115,7 +113,6 @@ export default function ProductsPage() {
       category_id: "",
       buy_price: 0,
       sell_price: 0,
-      currency: "IQD",
       initial_quantity: 0,
     });
     setError("");
@@ -130,7 +127,6 @@ export default function ProductsPage() {
       category_id: "",
       buy_price: 0,
       sell_price: 0,
-      currency: "IQD",
       initial_quantity: 0,
     });
     setError("");
@@ -145,7 +141,6 @@ export default function ProductsPage() {
         category_id: "",
         buy_price: 0,
         sell_price: 0,
-        currency: "IQD",
         initial_quantity: 0,
       },
     ]);
@@ -161,7 +156,6 @@ export default function ProductsPage() {
         category_id: "",
         buy_price: 0,
         sell_price: 0,
-        currency: "IQD",
         initial_quantity: 0,
       },
     ]);
@@ -185,7 +179,6 @@ export default function ProductsPage() {
       category_id: product.category_id,
       buy_price: product.buy_price,
       sell_price: product.sell_price,
-      currency: product.currency,
       initial_quantity: 0,
     });
     setError("");
@@ -501,9 +494,6 @@ export default function ProductsPage() {
                   Sell Price
                 </th>
                 <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
-                  Currency
-                </th>
-                <th className="text-left px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
                   Stock
                 </th>
                 <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
@@ -537,12 +527,11 @@ export default function ProductsPage() {
                         {product.category?.name || "—"}
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-white">
-                        {formatPriceInIQDSync(product.buy_price, product.currency)}
+                        {formatCurrency(product.buy_price)}
                       </td>
                       <td className="px-6 py-4 text-sm font-medium text-white">
-                        {formatPriceInIQDSync(product.sell_price, product.currency)}
+                        {formatCurrency(product.sell_price)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-300">{product.currency}</td>
                       <td className="px-6 py-4">
                         <Badge
                           variant={
@@ -674,29 +663,6 @@ export default function ProductsPage() {
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-2">Currency</label>
-            <div className="relative">
-              <select
-                value={formData.currency}
-                onChange={(e) =>
-                  setFormData({ ...formData, currency: e.target.value as "IQD" | "USD" })
-                }
-                className="input-field pr-10"
-              >
-                <option value="IQD">🇮🇶 Dinar (IQD)</option>
-                <option value="USD">🇺🇸 Dollar (USD)</option>
-              </select>
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                {formData.currency === "USD" ? (
-                  <DollarSign className="h-4 w-4 text-green-400" />
-                ) : (
-                  <span className="text-sm font-bold text-blue-400">ع.د</span>
-                )}
-              </div>
-            </div>
-          </div>
-
           {!editingProduct && (
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2">
@@ -822,26 +788,6 @@ export default function ProductsPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1">Currency</label>
-                  <div className="relative">
-                    <select
-                      value={product.currency}
-                      onChange={(e) => updateBulkProduct(index, "currency", e.target.value)}
-                      className="input-field text-sm pr-8"
-                    >
-                      <option value="IQD">🇮🇶 Dinar</option>
-                      <option value="USD">🇺🇸 Dollar</option>
-                    </select>
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                      {product.currency === "USD" ? (
-                        <DollarSign className="h-3 w-3 text-green-400" />
-                      ) : (
-                        <span className="text-xs font-bold text-blue-400">ع.د</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div>
                   <label className="block text-xs font-medium text-slate-400 mb-1">
                     Initial Qty
                   </label>
@@ -911,10 +857,7 @@ export default function ProductsPage() {
                 <h3 className="font-medium text-white mb-2">{sellingProduct.name}</h3>
                 <div className="text-sm text-slate-300 space-y-1">
                   <p>Model: {sellingProduct.model}</p>
-                  <p>
-                    Sell Price:{" "}
-                    {formatPriceInIQDSync(sellingProduct.sell_price, sellingProduct.currency)}
-                  </p>
+                  <p>Sell Price: {formatCurrency(sellingProduct.sell_price)}</p>
                   <p>Current Stock: {sellingProduct.stock?.quantity || 0} units</p>
                 </div>
               </div>

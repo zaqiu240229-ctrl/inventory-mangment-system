@@ -62,7 +62,6 @@ class DemoDataStore {
         category_id: "1",
         buy_price: 2290,
         sell_price: 3200,
-        currency: "IQD",
         created_at: "2024-01-15T08:30:00Z",
         updated_at: "2024-01-15T08:30:00Z",
         deleted_at: null,
@@ -82,7 +81,6 @@ class DemoDataStore {
         category_id: "1",
         buy_price: 2800,
         sell_price: 3800,
-        currency: "IQD",
         created_at: "2024-01-15T08:30:00Z",
         updated_at: "2024-01-15T08:30:00Z",
         deleted_at: null,
@@ -102,7 +100,6 @@ class DemoDataStore {
         category_id: "2",
         buy_price: 450,
         sell_price: 650,
-        currency: "IQD",
         created_at: "2024-01-15T08:30:00Z",
         updated_at: "2024-01-15T08:30:00Z",
         deleted_at: null,
@@ -122,7 +119,6 @@ class DemoDataStore {
         category_id: "3",
         buy_price: 120,
         sell_price: 180,
-        currency: "IQD",
         created_at: "2024-01-15T08:30:00Z",
         updated_at: "2024-01-15T08:30:00Z",
         deleted_at: null,
@@ -146,7 +142,6 @@ class DemoDataStore {
         quantity: 2,
         price: 3200, // sell_price of product 1
         total: 6400,
-        currency: "IQD",
         created_at: "2026-02-08T10:15:00Z", // Recent date
         product: this.findProduct("1"),
       },
@@ -157,7 +152,6 @@ class DemoDataStore {
         quantity: 5,
         price: 450, // buy_price of product 3
         total: 2250,
-        currency: "IQD",
         created_at: "2026-02-07T14:30:00Z", // Recent date
         product: this.findProduct("3"),
       },
@@ -168,7 +162,6 @@ class DemoDataStore {
         quantity: 1,
         price: 3800, // sell_price of product 2
         total: 3800,
-        currency: "IQD",
         created_at: "2026-02-10T09:00:00Z", // Today's date
         product: this.findProduct("2"),
       },
@@ -179,7 +172,6 @@ class DemoDataStore {
         quantity: 5,
         price: 180, // sell_price of product 4
         total: 900,
-        currency: "IQD",
         created_at: "2026-02-09T16:45:00Z", // Yesterday's date
         product: this.findProduct("4"),
       },
@@ -190,7 +182,6 @@ class DemoDataStore {
         quantity: 2,
         price: 2290, // buy_price of product 1
         total: 4580,
-        currency: "IQD",
         created_at: "2026-02-06T11:20:00Z", // A few days ago
         product: this.findProduct("1"),
       },
@@ -201,7 +192,6 @@ class DemoDataStore {
         quantity: 5,
         price: 3200, // sell_price of product 1
         total: 16000,
-        currency: "IQD",
         created_at: "2026-02-05T13:10:00Z", // More sales
         product: this.findProduct("1"),
       },
@@ -212,7 +202,6 @@ class DemoDataStore {
         quantity: 2,
         price: 3800, // sell_price of product 2
         total: 7600,
-        currency: "IQD",
         created_at: "2026-02-04T15:25:00Z", // More sales
         product: this.findProduct("2"),
       },
@@ -223,7 +212,6 @@ class DemoDataStore {
         quantity: 10,
         price: 180, // sell_price of product 4
         total: 1800,
-        currency: "IQD",
         created_at: "2026-02-03T10:45:00Z", // More sales
         product: this.findProduct("4"),
       },
@@ -379,15 +367,13 @@ class DemoDataStore {
       return sum + (p.stock?.quantity || 0);
     }, 0);
 
-    // Current inventory value at buy/sell prices (converted to IQD)
+    // Current inventory value at buy/sell prices
     const totalBuyValue = products.reduce((sum, p) => {
-      const buyPriceIQD = p.currency === "USD" ? p.buy_price * 1460 : p.buy_price;
-      return sum + (p.stock?.quantity || 0) * buyPriceIQD;
+      return sum + (p.stock?.quantity || 0) * p.buy_price;
     }, 0);
 
     const totalSellValue = products.reduce((sum, p) => {
-      const sellPriceIQD = p.currency === "USD" ? p.sell_price * 1460 : p.sell_price;
-      return sum + (p.stock?.quantity || 0) * sellPriceIQD;
+      return sum + (p.stock?.quantity || 0) * p.sell_price;
     }, 0);
 
     const totalProfit = totalSellValue - totalBuyValue;

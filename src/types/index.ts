@@ -2,8 +2,6 @@
 // Type Definitions
 // ============================================
 
-export type Currency = "IQD" | "USD";
-
 export interface Admin {
   id: string;
   email: string;
@@ -30,7 +28,6 @@ export interface Product {
   category_id: string;
   buy_price: number;
   sell_price: number;
-  currency: Currency;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -58,7 +55,6 @@ export interface Transaction {
   quantity: number;
   price: number;
   total: number;
-  currency: Currency;
   created_at: string;
   // Joined fields
   product?: Product;
@@ -174,7 +170,6 @@ export interface ProductFormData {
   category_id: string;
   buy_price: number;
   sell_price: number;
-  currency: Currency;
 }
 
 export interface StockFormData {

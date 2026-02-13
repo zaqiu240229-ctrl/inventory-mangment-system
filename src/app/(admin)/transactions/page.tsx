@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import type { Transaction, Product } from "@/types";
-import { formatCurrency, formatDateTime, formatPriceInIQDSync } from "@/lib/utils";
+import { formatCurrency, formatDateTime } from "@/lib/utils";
 import Badge from "@/components/ui/Badge";
 import Pagination from "@/components/ui/Pagination";
 import Tabs from "@/components/ui/Tabs";
@@ -126,9 +126,6 @@ export default function TransactionsPage() {
                 <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
                   Quantity
                 </th>
-                <th className="text-center px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
-                  Currency
-                </th>
                 <th className="text-right px-6 py-3 text-xs font-medium text-slate-400 uppercase tracking-wider">
                   Total
                 </th>
@@ -167,9 +164,8 @@ export default function TransactionsPage() {
                     <td className="px-6 py-4 text-center text-sm text-white font-medium">
                       {txn.quantity}
                     </td>
-                    <td className="px-6 py-4 text-center text-sm text-slate-300">{txn.currency}</td>
                     <td className="px-6 py-4 text-right text-sm font-semibold text-white">
-                      {formatPriceInIQDSync(txn.total, txn.currency)}
+                      {formatCurrency(txn.total)}
                     </td>
                     <td className="px-6 py-4 text-center">
                       <button
