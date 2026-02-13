@@ -6,7 +6,7 @@ import type { Category, Product } from "@/types";
 import Modal from "@/components/ui/Modal";
 import SearchBar from "@/components/ui/SearchBar";
 import { Plus, ChevronRight, Package, ArrowLeft } from "lucide-react";
-import { formatPriceInIQDSync } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -228,10 +228,10 @@ export default function CategoriesPage() {
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-300">{product.model}</td>
                         <td className="px-6 py-4 text-sm font-medium text-white">
-                          {formatPriceInIQDSync(product.buy_price, product.currency)}
+                          {formatCurrency(product.buy_price)}
                         </td>
                         <td className="px-6 py-4 text-sm font-medium text-white">
-                          {formatPriceInIQDSync(product.sell_price, product.currency)}
+                          {formatCurrency(product.sell_price)}
                         </td>
                       </tr>
                     ))}
