@@ -116,7 +116,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-// DELETE (soft delete) product
+// DELETE (soft delete or permanent delete) product
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -125,23 +125,56 @@ export async function DELETE(
     const { id } = await params;
     const sql = createClient();
 
-    const data = await sql`
-      UPDATE products
-      SET deleted_at = NOW()
-      WHERE id = ${parseInt(id)}
-      RETURNING *
-    `;
+    // Check if permanent deletion is requested
+    const { searchParams } = new URL(request.url);
+    const permanent = searchParams.get("permanent") === "true";
 
-    if (data.length === 0) {
-      return NextResponse.json({ success: false, error: "Product not found" }, { status: 404 });
+    if (permanent) {
+      // Permanent deletion - get product details first
+      const productData = await sql`
+        SELECT * FROM products WHERE id = ${parseInt(id)}
+      `;
+
+      if (productData.length === 0) {
+        return NextResponse.json({ success: false, error: "Product not found" }, { status: 404 });
+      }
+
+      // Delete related records first (foreign key constraints)
+      await sql`DELETE FROM stocks WHERE product_id = ${parseInt(id)}`;
+
+      // Delete transaction records (transactions table doesn't have CASCADE)
+      await sql`DELETE FROM transactions WHERE product_id = ${parseInt(id)}`;
+
+      // Delete the product permanently
+      await sql`DELETE FROM products WHERE id = ${parseInt(id)}`;
+
+      // Log the permanent deletion
+      await sql`
+        INSERT INTO activity_logs (action, entity_type, entity_id, details, created_at)
+        VALUES ('PERMANENT_DELETE', 'product', ${id}, ${JSON.stringify({ name: productData[0].name })}, NOW())
+      `;
+
+      return NextResponse.json({ success: true, message: "Product permanently deleted" });
+    } else {
+      // Soft deletion
+      const data = await sql`
+        UPDATE products
+        SET deleted_at = NOW()
+        WHERE id = ${parseInt(id)}
+        RETURNING *
+      `;
+
+      if (data.length === 0) {
+        return NextResponse.json({ success: false, error: "Product not found" }, { status: 404 });
+      }
+
+      await sql`
+        INSERT INTO activity_logs (action, entity_type, entity_id, details, created_at)
+        VALUES ('DELETE', 'product', ${id}, ${JSON.stringify({ name: data[0].name })}, NOW())
+      `;
+
+      return NextResponse.json({ success: true, data: data[0] });
     }
-
-    await sql`
-      INSERT INTO activity_logs (action, entity_type, entity_id, details, created_at)
-      VALUES ('DELETE', 'product', ${id}, ${JSON.stringify({ name: data[0].name })}, NOW())
-    `;
-
-    return NextResponse.json({ success: true, data: data[0] });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
