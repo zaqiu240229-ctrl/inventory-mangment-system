@@ -1,76 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/neon";
-import { isDemoMode } from "@/lib/demo-data";
-
-const DEMO_CATEGORIES = [
-  {
-    id: "1",
-    name: "Screens",
-    description: "LCD, OLED, and touch screen panels",
-    is_active: true,
-    created_at: "2024-01-01T00:00:00Z",
-    updated_at: "2024-01-01T00:00:00Z",
-  },
-  {
-    id: "2",
-    name: "Batteries",
-    description: "Mobile phone batteries and power cells",
-    is_active: true,
-    created_at: "2024-01-01T00:00:00Z",
-    updated_at: "2024-01-01T00:00:00Z",
-  },
-  {
-    id: "3",
-    name: "Chargers",
-    description: "Charging cables, adapters, and wireless chargers",
-    is_active: true,
-    created_at: "2024-01-01T00:00:00Z",
-    updated_at: "2024-01-01T00:00:00Z",
-  },
-  {
-    id: "4",
-    name: "Speakers",
-    description: "Phone speakers and audio components",
-    is_active: true,
-    created_at: "2024-01-01T00:00:00Z",
-    updated_at: "2024-01-01T00:00:00Z",
-  },
-  {
-    id: "5",
-    name: "Cameras",
-    description: "Camera modules, front and rear",
-    is_active: true,
-    created_at: "2024-01-01T00:00:00Z",
-    updated_at: "2024-01-01T00:00:00Z",
-  },
-  {
-    id: "6",
-    name: "IC / Chips",
-    description: "Integrated circuits and chipsets",
-    is_active: true,
-    created_at: "2024-01-01T00:00:00Z",
-    updated_at: "2024-01-01T00:00:00Z",
-  },
-  {
-    id: "7",
-    name: "Other Parts",
-    description: "Miscellaneous mobile phone parts",
-    is_active: true,
-    created_at: "2024-01-01T00:00:00Z",
-    updated_at: "2024-01-01T00:00:00Z",
-  },
-];
 
 // GET all categories
 export async function GET() {
-  if (isDemoMode) {
-    return NextResponse.json({ success: true, data: DEMO_CATEGORIES });
-  }
-
   try {
     const sql = createClient();
     const data = await sql`
-      SELECT * FROM categories 
+      SELECT * FROM categories
+      WHERE is_active = true
       ORDER BY created_at ASC
     `;
 
@@ -82,13 +19,6 @@ export async function GET() {
 
 // POST new category
 export async function POST(request: NextRequest) {
-  if (isDemoMode) {
-    return NextResponse.json(
-      { success: false, error: "Demo mode - Database operations not available" },
-      { status: 400 }
-    );
-  }
-
   try {
     const sql = createClient();
     const body = await request.json();

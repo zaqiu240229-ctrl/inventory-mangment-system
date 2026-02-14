@@ -14,7 +14,6 @@ const pageTitles: Record<string, string> = {
   "/transactions": "Transactions & Reports",
 
   "/alerts": "Alerts",
-  "/logs": "Activity Logs",
 };
 
 interface HeaderProps {

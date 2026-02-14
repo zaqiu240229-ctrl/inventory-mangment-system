@@ -94,21 +94,6 @@ export const initializeDatabase = async () => {
       ON CONFLICT (username) DO NOTHING
     `;
 
-    // Insert default categories if not exists
-    const existingCategories = await sql`SELECT COUNT(*) as count FROM categories`;
-    if (existingCategories[0].count === 0) {
-      await sql`
-        INSERT INTO categories (name, description) VALUES
-        ('Screens', 'LCD, OLED, and touch screen panels'),
-        ('Batteries', 'Mobile phone batteries and power cells'),
-        ('Chargers', 'Charging cables, adapters, and wireless chargers'),
-        ('Speakers', 'Phone speakers and audio components'),
-        ('Cameras', 'Camera modules, front and rear'),
-        ('IC / Chips', 'Integrated circuits and chipsets'),
-        ('Other Parts', 'Miscellaneous mobile phone parts')
-      `;
-    }
-
     console.log("Database initialized successfully");
   } catch (error) {
     console.error("Database initialization error:", error);

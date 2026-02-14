@@ -10,7 +10,6 @@ import {
   FolderOpen,
   ArrowLeftRight,
   Bell,
-  ScrollText,
   BarChart3,
   ChevronDown,
   LogOut,
@@ -24,7 +23,6 @@ const navItems = [
   { href: "/transactions", label: "Transactions", icon: ArrowLeftRight },
   { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/alerts", label: "Alerts", icon: Bell },
-  { href: "/logs", label: "Logs", icon: ScrollText },
 ];
 
 interface SidebarProps {
